@@ -1,0 +1,61 @@
+#Maven ignore
+target/
+classes/
+*.class
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+*.log
+settings.xml
+
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**
+!**/src/test/**
+bin/
+classes/
+target/
+*.log
+*.log.*
+
+#Elipse ignore
+.settings/
+.settings/*
+**/.settings/*
+.metadata/
+.metadata/*
+RemoteSystemsTempFiles/
+.project
+**/.project
+.classpath
+**/.classpath
+Servers/
+**/target/**
+**/classes/**
+
+#idea
+*.iml
+*.ipr
+*.iws
+.idea
+.idea/**
+out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### Mac ###
+.DS_Store
+
+### Other ###
+.flattened-pom.xml

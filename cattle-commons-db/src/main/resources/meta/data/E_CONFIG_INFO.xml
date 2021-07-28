@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MetaData name="E_CONFIG_INFO" alias="ConfigInfo" comment="配置信息" useCache="true">
+    <Fields>
+		<Field name="CONFIG_NAME" type="NString" comment="配置名" length="100" allowNull="false"/>
+		<Field name="CONFIG_ENCRYPT" type="Boolean" comment="是否加密"/>
+		<Field name="CONFIG_VALUE" type="NClob" comment="配置值"/>
+    </Fields>
+    <Indexes>
+        <Index name="IDX_E_CONFIG_INFO" unique="true" fields="CONFIG_NAME"/>
+    </Indexes>
+</MetaData>
