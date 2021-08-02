@@ -36,6 +36,7 @@ import io.github.summercattle.commons.db.meta.annotation.AnnotatedIndexMeta;
 import io.github.summercattle.commons.db.meta.annotation.AnnotatedReferenceFieldMeta;
 import io.github.summercattle.commons.db.meta.annotation.AnnotatedSystemFieldMeta;
 import io.github.summercattle.commons.db.meta.annotation.AnnotatedTableMeta;
+import io.github.summercattle.commons.db.meta.impl.ReferenceFieldInfoImpl;
 import io.github.summercattle.commons.db.meta.impl.TableMetaImpl;
 import io.github.summercattle.commons.exception.CommonException;
 import io.github.summercattle.commons.utils.reflect.ReflectUtils;
@@ -116,6 +117,7 @@ public class AnnotatedTableMetaImpl extends TableMetaImpl implements AnnotatedTa
 					if (!checkFieldName(dbProperties, annotatedField.getName())) {
 						throw new CommonException("类'" + classType.getName() + "'中字段名'" + annotatedField.getName() + "'是系统保留字段名");
 					}
+					referenceFieldInfos.add(new ReferenceFieldInfoImpl(annotatedField.getReferenceTableName(), annotatedField.getName()));
 					fields.add(annotatedField);
 				}
 			}

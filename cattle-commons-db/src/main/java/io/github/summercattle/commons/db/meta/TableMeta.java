@@ -15,6 +15,8 @@
  */
 package io.github.summercattle.commons.db.meta;
 
+import java.util.List;
+
 import io.github.summercattle.commons.exception.CommonException;
 
 /**
@@ -71,6 +73,13 @@ public interface TableMeta {
 	 * @throws CommonException 异常
 	 */
 	FieldMeta getField(String name) throws CommonException;
+
+	/**
+	 * 得到关联字段信息
+	 * @return 关联字段信息
+	 * @throws CommonException 异常
+	 */
+	List<ReferenceFieldInfo> getReferenceFieldInfos() throws CommonException;
 
 	/**
 	 * 得到所有索引定义信息

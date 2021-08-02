@@ -29,6 +29,7 @@ import io.github.summercattle.commons.db.meta.file.FileFixedFieldMeta;
 import io.github.summercattle.commons.db.meta.file.FileIndexMeta;
 import io.github.summercattle.commons.db.meta.file.FileReferenceFieldMeta;
 import io.github.summercattle.commons.db.meta.file.FileTableMeta;
+import io.github.summercattle.commons.db.meta.impl.ReferenceFieldInfoImpl;
 import io.github.summercattle.commons.db.meta.impl.TableMetaImpl;
 import io.github.summercattle.commons.exception.CommonException;
 
@@ -75,6 +76,7 @@ public class FileTableMetaImpl extends TableMetaImpl implements FileTableMeta {
 				else if (FieldMetaMode.Reference == fieldMode) {
 					fieldMeta = new FileReferenceFieldMetaImpl();
 					((FileReferenceFieldMeta) fieldMeta).from(fieldName, fieldElement);
+					referenceFieldInfos.add(new ReferenceFieldInfoImpl(((FileReferenceFieldMeta) fieldMeta).getReferenceTableName(), fieldName));
 				}
 				else {
 					throw new CommonException("数据表表'" + name + "'字段名'" + fieldName + "'的未知模式'" + fieldMode.toString() + "'");

@@ -22,6 +22,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
+import java.util.stream.Collectors;
 
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -37,6 +38,7 @@ import io.github.summercattle.commons.db.field.FieldTypes;
 import io.github.summercattle.commons.db.handle.DalContext;
 import io.github.summercattle.commons.db.meta.FieldMeta;
 import io.github.summercattle.commons.db.meta.FieldMetaMode;
+import io.github.summercattle.commons.db.meta.ReferenceFieldInfo;
 import io.github.summercattle.commons.db.meta.TableMeta;
 import io.github.summercattle.commons.db.meta.annotation.AnnotatedFixedFieldMeta;
 import io.github.summercattle.commons.db.meta.annotation.AnnotatedReferenceFieldMeta;
@@ -747,8 +749,55 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 		}
 	}
 
-	private boolean hasRelationDatas(String tableName, Object id) {
-		return false;
+	private boolean hasRelationDatas(String tableName, Object id) throws CommonException {
+		TableMeta table = DbUtils.getDbMetaModel().getTable(tableName);
+		String name = table.getName();
+		String alias = table.getAlias();
+		TableMeta[] tables = DbUtils.getDbMetaModel().getTables();
+		boolean hasData = false;
+		for (TableMeta tableMeta : tables) {
+			if (!tableMeta.getName().equals(name)) {
+				if (tableMeta.getReferenceFieldInfos().size() > 0) {
+					List<ReferenceFieldInfo> referenceFieldInfos = tableMeta.getReferenceFieldInfos().stream()
+							.filter(p -> p.getReferenceTableName().equalsIgnoreCase(name)
+									|| (StringUtils.isNotBlank(alias) && p.getReferenceTableName().equalsIgnoreCase(alias)))
+							.collect(Collectors.toList());
+					if (referenceFieldInfos.size() > 0) {
+						for (ReferenceFieldInfo referenceFieldInfo : referenceFieldInfos) {
+							PreparedStatement psCount = null;
+							ResultSet rsCount = null;
+							ResultSet rs = null;
+							try {
+								String countSQL = "select count(*) from " + tableMeta.getName() + " where " + referenceFieldInfo.getName() + "=?";
+								Object[] params = new Object[] { id };
+								psCount = conn.prepareStatement(countSQL);
+								String info = "执行SQL语句:" + countSQL + ",参数值:" + ArrayUtils.toString(params);
+								setParams(psCount, 1, params, info);
+								rsCount = JdbcUtils.executeQuery(psCount, info);
+								if (rsCount != null && rsCount.next()) {
+									if (rsCount.getInt(1) > 0) {
+										hasData = true;
+										break;
+									}
+								}
+							}
+							catch (SQLException e) {
+								throw ExceptionWrapUtils.wrap(e);
+							}
+							finally {
+								JdbcUtils.closeResultSet(rsCount);
+								JdbcUtils.closeResultSet(rs);
+								JdbcUtils.closeStatement(psCount);
+							}
+						}
+						if (hasData) {
+							break;
+						}
+					}
+				}
+			}
+		}
+		return hasData;
 	}
 
 	@Override

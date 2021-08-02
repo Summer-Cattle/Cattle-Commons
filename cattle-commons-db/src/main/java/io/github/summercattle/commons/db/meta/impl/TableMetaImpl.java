@@ -23,6 +23,7 @@ import org.apache.commons.codec.binary.StringUtils;
 import io.github.summercattle.commons.db.configure.DbProperties;
 import io.github.summercattle.commons.db.meta.FieldMeta;
 import io.github.summercattle.commons.db.meta.IndexMeta;
+import io.github.summercattle.commons.db.meta.ReferenceFieldInfo;
 import io.github.summercattle.commons.db.meta.TableMeta;
 import io.github.summercattle.commons.exception.CommonException;
 
@@ -43,6 +44,8 @@ public abstract class TableMetaImpl implements TableMeta {
 	protected final List<FieldMeta> fields = new Vector<FieldMeta>();
 
 	protected final List<IndexMeta> indexes = new Vector<IndexMeta>();
+
+	protected final List<ReferenceFieldInfo> referenceFieldInfos = new Vector<ReferenceFieldInfo>();
 
 	@Override
 	public String getName() {
@@ -132,5 +135,10 @@ public abstract class TableMetaImpl implements TableMeta {
 						fieldName.toUpperCase())
 				|| StringUtils.equals(dbProperties.getDeletedField() != null ? dbProperties.getDeletedField().toUpperCase() : null,
 						fieldName.toUpperCase()));
+	}
+
+	@Override
+	public List<ReferenceFieldInfo> getReferenceFieldInfos() throws CommonException {
+		return referenceFieldInfos;
 	}
 }
