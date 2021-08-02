@@ -24,6 +24,7 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -93,30 +94,46 @@ public class SpringContext implements ApplicationContextAware {
 	}
 
 	public static <T> T getBean(Class<T> requiredType) {
-		if (null != applicationContext) {
-			return applicationContext.getBean(requiredType);
+		if (null == requiredType) {
+			throw new CommonRuntimeException("Bean的类型为空");
 		}
-		if (null != beanFactory) {
-			return beanFactory.getBean(requiredType);
+		try {
+			if (null != applicationContext) {
+				return applicationContext.getBean(requiredType);
+			}
+			if (null != beanFactory) {
+				return beanFactory.getBean(requiredType);
+			}
+		}
+		catch (NoSuchBeanDefinitionException e) {
+			throw new CommonRuntimeException("没有找到类型'" + requiredType.getName() + "'的Bean");
 		}
 		throw new CommonRuntimeException("应用程序上下文为空");
 	}
 
 	public static Object getBean(String name) {
-		if (null != applicationContext) {
-			return applicationContext.getBean(name);
+		if (StringUtils.isBlank(name)) {
+			throw new CommonRuntimeException("Bean的名称为空");
 		}
-		if (null != beanFactory) {
-			return beanFactory.getBean(name);
+		try {
+			if (null != applicationContext) {
+				return applicationContext.getBean(name);
+			}
+			if (null != beanFactory) {
+				return beanFactory.getBean(name);
+			}
+		}
+		catch (NoSuchBeanDefinitionException e) {
+			throw new CommonRuntimeException("没有找到名称'" + name + "'的Bean");
 		}
 		throw new CommonRuntimeException("应用程序上下文为空");
 	}
 
 	public static boolean containsProperty(String key) {
 		checkApplicationContext();
-		return applicationContext.getEnvironment().containsProperty(key);		
+		return applicationContext.getEnvironment().containsProperty(key);
 	}
-	
+
 	public static String getProperty(String key) {
 		checkApplicationContext();
 		return applicationContext.getEnvironment().getProperty(key);
