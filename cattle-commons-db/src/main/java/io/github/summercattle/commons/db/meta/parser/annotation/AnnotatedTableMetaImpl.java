@@ -30,6 +30,7 @@ import io.github.summercattle.commons.db.annotation.Table;
 import io.github.summercattle.commons.db.annotation.UpdateTime;
 import io.github.summercattle.commons.db.annotation.Version;
 import io.github.summercattle.commons.db.configure.DbProperties;
+import io.github.summercattle.commons.db.meta.IndexFieldMeta;
 import io.github.summercattle.commons.db.meta.TableMetaSource;
 import io.github.summercattle.commons.db.meta.annotation.AnnotatedFixedFieldMeta;
 import io.github.summercattle.commons.db.meta.annotation.AnnotatedIndexMeta;
@@ -64,11 +65,6 @@ public class AnnotatedTableMetaImpl extends TableMetaImpl implements AnnotatedTa
 		useCache = table.useCache();
 		comment = table.comment();
 		primaryKeyUseNumber = table.primaryKeyUseNumber();
-		primaryKeyName = table.primaryKeyName();
-		if (StringUtils.isBlank(primaryKeyName)) {
-			primaryKeyName = "PK_" + name;
-		}
-		primaryKeyName = primaryKeyName.toUpperCase();
 		List<java.lang.reflect.Field> classFields = ReflectUtils.getFields(classType);
 		for (java.lang.reflect.Field classField : classFields) {
 			if (null != classField.getAnnotation(Primary.class)) {
@@ -161,8 +157,13 @@ public class AnnotatedTableMetaImpl extends TableMetaImpl implements AnnotatedTa
 	private void handleIndex(Index index, Class< ? > classType) throws CommonException {
 		AnnotatedIndexMeta indexMeta = new AnnotatedIndexMetaImpl();
 		indexMeta.from(index);
-		if (hasIndexName(indexMeta.getName())) {
-			throw new CommonException("类'" + classType.getName() + "'中已经存在数据表索引名'" + indexMeta.getName() + "'");
+		for (IndexFieldMeta indexFieldMeta : indexMeta.getFields()) {
+			if (!fields.stream().anyMatch(p -> p.getName().equals(indexFieldMeta.getField()))) {
+				throw new CommonException("表'" + name + "'不存在字段名'" + indexFieldMeta.getField() + "'");
+			}
+		}
+		if (hasIndexHash(indexMeta.toString())) {
+			throw new CommonException("类'" + classType.getName() + "'中已经存在数据表索引名'" + indexMeta.toString() + "'");
 		}
 		indexes.add(indexMeta);
 	}

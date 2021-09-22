@@ -15,20 +15,19 @@
  */
 package io.github.summercattle.commons.db.meta.impl;
 
+import org.apache.commons.lang3.BooleanUtils;
+import org.apache.commons.lang3.StringUtils;
+
+import io.github.summercattle.commons.db.meta.IndexFieldMeta;
 import io.github.summercattle.commons.db.meta.IndexMeta;
 
 public class IndexMetaImpl implements IndexMeta {
 
-	protected String name;
+	private String hash;
 
 	protected boolean unique;
 
-	protected String fields;
-
-	@Override
-	public String getName() {
-		return name;
-	}
+	protected IndexFieldMeta[] fields;
 
 	@Override
 	public boolean isUnique() {
@@ -36,7 +35,20 @@ public class IndexMetaImpl implements IndexMeta {
 	}
 
 	@Override
-	public String getFields() {
+	public IndexFieldMeta[] getFields() {
 		return fields;
+	}
+
+	@Override
+	public String toString() {
+		if (StringUtils.isBlank(hash)) {
+			StringBuffer buf = new StringBuffer("Unique'" + BooleanUtils.toStringTrueFalse(unique) + "'");
+			for (int i = 0; i < fields.length; i++) {
+				IndexFieldMeta indexFieldMeta = fields[i];
+				buf.append("Column'" + indexFieldMeta.getField() + "'Order'" + indexFieldMeta.getOrder() + "'");
+			}
+			hash = io.github.summercattle.commons.utils.auxiliary.StringUtils.getHashName(buf.toString());
+		}
+		return hash;
 	}
 }

@@ -56,12 +56,6 @@ public @interface Table {
 	String comment() default "";
 
 	/**
-	 * 主键约束名称
-	 * @return 主键约束名称
-	 */
-	String primaryKeyName() default "";
-
-	/**
 	 * 主键是否为数值
 	 * @return 主键是否为数值
 	 */

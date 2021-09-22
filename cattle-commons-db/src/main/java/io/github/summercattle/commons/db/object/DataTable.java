@@ -31,6 +31,12 @@ public interface DataTable extends DataQuery {
 	 * @return 表定义名
 	 */
 	String getName();
+	
+	/**
+	 * 表定义别名
+	 * @return 表定义别名
+	 */
+	String getAlias();
 
 	/**
 	 * 插入记录

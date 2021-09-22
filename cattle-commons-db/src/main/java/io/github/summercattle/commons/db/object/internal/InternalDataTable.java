@@ -28,9 +28,7 @@ public interface InternalDataTable {
 
 	void setAddAndModifyLines(List<RowLineSet> addLines, List<RowLineSet> modifyLines) throws CommonException;
 
-	boolean[] getFieldUseSQLKeyword();
-
 	Map<String, Integer> getFieldIndexes();
-	
+
 	boolean isUseCache();
 }

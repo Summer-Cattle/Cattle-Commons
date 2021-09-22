@@ -27,7 +27,6 @@ import java.util.Vector;
 import io.github.summercattle.commons.db.DbUtils;
 import io.github.summercattle.commons.db.configure.DbProperties;
 import io.github.summercattle.commons.db.constants.DataConstants;
-import io.github.summercattle.commons.db.constants.DataType;
 import io.github.summercattle.commons.db.field.FieldTypes;
 import io.github.summercattle.commons.db.meta.FieldMeta;
 import io.github.summercattle.commons.db.meta.TableMeta;
@@ -36,7 +35,6 @@ import io.github.summercattle.commons.db.object.internal.InternalDataTable;
 import io.github.summercattle.commons.db.object.internal.RowLineSet;
 import io.github.summercattle.commons.db.object.internal.RowStatus;
 import io.github.summercattle.commons.db.object.internal.impl.RowLineSetImpl;
-import io.github.summercattle.commons.db.struct.FieldStruct;
 import io.github.summercattle.commons.db.struct.TableFieldStruct;
 import io.github.summercattle.commons.db.struct.TableObjectStruct;
 import io.github.summercattle.commons.db.utils.JdbcUtils;
@@ -50,11 +48,9 @@ public class DataTableImpl extends DataQueryImpl implements DataTable, InternalD
 
 	protected boolean[] fieldAllowNulls;
 
-	protected long[] fieldPrecisions;
+	protected long[] fieldLengths;
 
 	protected int[] fieldScales;
-
-	protected boolean[] fieldUseSQLKeyword;
 
 	private List<RowLineSet> deleteLines = new Vector<RowLineSet>();
 
@@ -64,6 +60,8 @@ public class DataTableImpl extends DataQueryImpl implements DataTable, InternalD
 
 	private boolean useCache;
 
+	private String alias;
+
 	public DataTableImpl(DbProperties dbProperties, ResultSet rs, TableMeta tableMeta, TableObjectStruct tableStructure) throws CommonException {
 		this(dbProperties, tableMeta, tableStructure);
 		initLines(rs);
@@ -71,22 +69,22 @@ public class DataTableImpl extends DataQueryImpl implements DataTable, InternalD
 
 	public DataTableImpl(DbProperties dbProperties, TableMeta tableMeta, TableObjectStruct tableStructure) throws CommonException {
 		this.dbProperties = dbProperties;
+		alias = tableMeta.getAlias();
 		initFieldsInfo(tableMeta, tableStructure);
 		Integer primaryFieldIndex = fieldIndexes.get(dbProperties.getPrimaryField());
 		useCache = tableMeta.isUseCache();
 		primaryKeyUseNumber = tableMeta.isPrimaryKeyUseNumber();
 		int primaryType = fieldTypes[primaryFieldIndex.intValue()];
-		DataType dataType = JdbcUtils.getDataType(primaryType);
 		if (primaryKeyUseNumber) {
-			if (dataType != DataType.Number) {
+			if (!JdbcUtils.isNumeric(primaryType)) {
 				throw new CommonException("表'" + tableStructure.getName() + "'的主键字段'" + dbProperties.getPrimaryField() + "'必须为数值型,目前字段类型值'"
-						+ dataType.toString() + "'");
+						+ tableStructure.getField(dbProperties.getPrimaryField()).getTypeName() + "'");
 			}
 		}
 		else {
-			if (dataType != DataType.String && dataType != DataType.NString) {
+			if (!JdbcUtils.isString(primaryType)) {
 				throw new CommonException("表'" + tableStructure.getName() + "'的主键字段'" + dbProperties.getPrimaryField() + "'必须为字符型,目前字段类型值'"
-						+ dataType.toString() + "'");
+						+ tableStructure.getField(dbProperties.getPrimaryField()).getTypeName() + "'");
 			}
 		}
 	}
@@ -124,94 +122,59 @@ public class DataTableImpl extends DataQueryImpl implements DataTable, InternalD
 	private void setFieldInfo(TableFieldStruct fieldStructure, String fieldName, int fieldIndex) throws CommonException {
 		fieldTypes[fieldIndex] = fieldStructure.getJdbcType();
 		fieldAllowNulls[fieldIndex] = fieldStructure.isNullable();
-		fieldPrecisions[fieldIndex] = fieldStructure.getSize();
-		fieldScales[fieldIndex] = fieldStructure.getDecimalDigits();
-		fieldUseSQLKeyword[fieldIndex] = fieldStructure.isSqlKeyword();
+		fieldLengths[fieldIndex] = fieldStructure.getLength();
+		fieldScales[fieldIndex] = fieldStructure.getScale();
+		fieldIndexes.put(fieldName.toUpperCase(), fieldIndex);
+	}
+
+	private void setSystemFieldInfo(TableFieldStruct fieldStructure, String fieldName, int fieldIndex) throws CommonException {
+		fieldTypes[fieldIndex] = fieldStructure.getJdbcType();
 		fieldIndexes.put(fieldName.toUpperCase(), fieldIndex);
 	}
 
 	private void initFieldsInfo(TableMeta tableMeta, TableObjectStruct tableStructure) throws CommonException {
-		if (tableMeta != null) {
-			tableName = tableMeta.getName();
-			FieldMeta[] fieldMetas = tableMeta.getFields();
-			int fieldCount = 0;
-			for (FieldMeta fieldMeta : fieldMetas) {
-				String fieldName = fieldMeta.getName();
-				if (!fieldName.equalsIgnoreCase(dbProperties.getCreateTimeField()) && !fieldName.equalsIgnoreCase(dbProperties.getUpdateTimeField())
-						&& !fieldName.equalsIgnoreCase(dbProperties.getDeletedField()) && !fieldName.equalsIgnoreCase(dbProperties.getVersionField())
-						&& !fieldName.equalsIgnoreCase(dbProperties.getPrimaryField())) {
-					fieldCount++;
-				}
+		tableName = tableMeta.getName();
+		FieldMeta[] fieldMetas = tableMeta.getFields();
+		int fieldCount = 0;
+		for (FieldMeta fieldMeta : fieldMetas) {
+			String fieldName = fieldMeta.getName();
+			if (!fieldName.equalsIgnoreCase(dbProperties.getCreateTimeField()) && !fieldName.equalsIgnoreCase(dbProperties.getUpdateTimeField())
+					&& !fieldName.equalsIgnoreCase(dbProperties.getDeletedField()) && !fieldName.equalsIgnoreCase(dbProperties.getVersionField())
+					&& !fieldName.equalsIgnoreCase(dbProperties.getPrimaryField())) {
+				fieldCount++;
 			}
-			fieldTypes = new int[fieldCount + DataConstants.SYSTEM_DEFAULT_COLUMN_SIZE];
-			fieldAllowNulls = new boolean[fieldCount + DataConstants.SYSTEM_DEFAULT_COLUMN_SIZE];
-			fieldPrecisions = new long[fieldCount + DataConstants.SYSTEM_DEFAULT_COLUMN_SIZE];
-			fieldScales = new int[fieldMetas.length + DataConstants.SYSTEM_DEFAULT_COLUMN_SIZE];
-			fieldUseSQLKeyword = new boolean[fieldCount + DataConstants.SYSTEM_DEFAULT_COLUMN_SIZE];
-			fieldNames = new String[fieldCount];
-			int fieldIndex = 0;
-			for (FieldMeta fieldMeta : fieldMetas) {
-				String fieldName = fieldMeta.getName();
-				if (!fieldName.equalsIgnoreCase(dbProperties.getCreateTimeField()) && !fieldName.equalsIgnoreCase(dbProperties.getUpdateTimeField())
-						&& !fieldName.equalsIgnoreCase(dbProperties.getDeletedField()) && !fieldName.equalsIgnoreCase(dbProperties.getVersionField())
-						&& !fieldName.equalsIgnoreCase(dbProperties.getPrimaryField())) {
-					TableFieldStruct fieldStructure = (TableFieldStruct) tableStructure.getField(fieldName);
-					setFieldInfo(fieldStructure, fieldMeta.getName(), fieldIndex);
-					fieldNames[fieldIndex] = fieldName;
-					fieldIndex++;
-				}
-			}
-			TableFieldStruct createDateFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getCreateTimeField());
-			setFieldInfo(createDateFieldStructure, dbProperties.getCreateTimeField(), fieldIndex);
-			fieldIndex++;
-			TableFieldStruct modifyDateFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getUpdateTimeField());
-			setFieldInfo(modifyDateFieldStructure, dbProperties.getUpdateTimeField(), fieldIndex);
-			fieldIndex++;
-			TableFieldStruct deletedFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getDeletedField());
-			setFieldInfo(deletedFieldStructure, dbProperties.getDeletedField(), fieldIndex);
-			fieldIndex++;
-			TableFieldStruct versionFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getVersionField());
-			setFieldInfo(versionFieldStructure, dbProperties.getVersionField(), fieldIndex);
-			fieldIndex++;
-			TableFieldStruct primaryFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getPrimaryField());
-			setFieldInfo(primaryFieldStructure, dbProperties.getPrimaryField(), fieldIndex);
 		}
-		else {
-			tableName = tableStructure.getName();
-			FieldStruct[] fieldStructures = tableStructure.getFields();
-			fieldTypes = new int[fieldStructures.length];
-			fieldAllowNulls = new boolean[fieldStructures.length];
-			fieldPrecisions = new long[fieldStructures.length];
-			fieldScales = new int[fieldStructures.length];
-			fieldUseSQLKeyword = new boolean[fieldStructures.length];
-			List<String> fields = new Vector<String>();
-			int fieldIndex = 0;
-			for (int i = 0; i < fieldStructures.length; i++) {
-				String fieldName = fieldStructures[i].getName();
-				if (!fieldName.equalsIgnoreCase(dbProperties.getCreateTimeField()) && !fieldName.equalsIgnoreCase(dbProperties.getUpdateTimeField())
-						&& !fieldName.equalsIgnoreCase(dbProperties.getDeletedField()) && !fieldName.equalsIgnoreCase(dbProperties.getVersionField())
-						&& !fieldName.equalsIgnoreCase(dbProperties.getPrimaryField())) {
-					setFieldInfo((TableFieldStruct) fieldStructures[i], fieldName, fieldIndex);
-					fields.add(fieldStructures[i].getName());
-					fieldIndex++;
-				}
+		fieldTypes = new int[fieldCount + DataConstants.SYSTEM_DEFAULT_COLUMN_SIZE];
+		fieldNames = new String[fieldCount];
+		fieldAllowNulls = new boolean[fieldCount];
+		fieldLengths = new long[fieldCount];
+		fieldScales = new int[fieldCount];
+		int fieldIndex = 0;
+		for (FieldMeta fieldMeta : fieldMetas) {
+			String fieldName = fieldMeta.getName();
+			if (!fieldName.equalsIgnoreCase(dbProperties.getCreateTimeField()) && !fieldName.equalsIgnoreCase(dbProperties.getUpdateTimeField())
+					&& !fieldName.equalsIgnoreCase(dbProperties.getDeletedField()) && !fieldName.equalsIgnoreCase(dbProperties.getVersionField())
+					&& !fieldName.equalsIgnoreCase(dbProperties.getPrimaryField())) {
+				TableFieldStruct fieldStructure = (TableFieldStruct) tableStructure.getField(fieldName);
+				setFieldInfo(fieldStructure, fieldMeta.getName(), fieldIndex);
+				fieldNames[fieldIndex] = fieldName;
+				fieldIndex++;
 			}
-			fieldNames = fields.toArray(new String[0]);
-			TableFieldStruct createDateFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getCreateTimeField());
-			setFieldInfo(createDateFieldStructure, dbProperties.getCreateTimeField(), fieldIndex);
-			fieldIndex++;
-			TableFieldStruct modifyDateFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getUpdateTimeField());
-			setFieldInfo(modifyDateFieldStructure, dbProperties.getUpdateTimeField(), fieldIndex);
-			fieldIndex++;
-			TableFieldStruct deletedFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getDeletedField());
-			setFieldInfo(deletedFieldStructure, dbProperties.getDeletedField(), fieldIndex);
-			fieldIndex++;
-			TableFieldStruct versionFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getVersionField());
-			setFieldInfo(versionFieldStructure, dbProperties.getVersionField(), fieldIndex);
-			fieldIndex++;
-			TableFieldStruct primaryFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getPrimaryField());
-			setFieldInfo(primaryFieldStructure, dbProperties.getPrimaryField(), fieldIndex);
 		}
+		TableFieldStruct createDateFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getCreateTimeField());
+		setSystemFieldInfo(createDateFieldStructure, dbProperties.getCreateTimeField(), fieldIndex);
+		fieldIndex++;
+		TableFieldStruct modifyDateFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getUpdateTimeField());
+		setSystemFieldInfo(modifyDateFieldStructure, dbProperties.getUpdateTimeField(), fieldIndex);
+		fieldIndex++;
+		TableFieldStruct deletedFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getDeletedField());
+		setSystemFieldInfo(deletedFieldStructure, dbProperties.getDeletedField(), fieldIndex);
+		fieldIndex++;
+		TableFieldStruct versionFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getVersionField());
+		setSystemFieldInfo(versionFieldStructure, dbProperties.getVersionField(), fieldIndex);
+		fieldIndex++;
+		TableFieldStruct primaryFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getPrimaryField());
+		setSystemFieldInfo(primaryFieldStructure, dbProperties.getPrimaryField(), fieldIndex);
 	}
 
 	@Override
@@ -259,9 +222,7 @@ public class DataTableImpl extends DataQueryImpl implements DataTable, InternalD
 			values[primaryFieldIndex.intValue()] = ReflectUtils.convertValue(fieldType, null, primaryValue);
 		}
 		else {
-			String value = (String) ReflectUtils.convertValue(ClassType.String, null, primaryValue);
-			checkStringFieldValue(dbProperties.getPrimaryField(), value.length(), fieldPrecisions[primaryFieldIndex.intValue()]);
-			values[primaryFieldIndex.intValue()] = value;
+			values[primaryFieldIndex.intValue()] = ReflectUtils.convertValue(ClassType.String, null, primaryValue);
 		}
 		lines.add(new RowLineSetImpl(RowStatus.Add, tableName, fieldNames, fieldTypes, values));
 		lineIndex = lines.size();
@@ -409,7 +370,7 @@ public class DataTableImpl extends DataQueryImpl implements DataTable, InternalD
 		Object lValue = ReflectUtils.convertValue(fieldType, fieldType == ClassType.Array ? returnedClass.getComponentType() : null, value);
 		if (fieldType == ClassType.String && lValue != null
 				&& (fieldTypes[fieldIndex - 1] == Types.VARCHAR || fieldTypes[fieldIndex - 1] == Types.NVARCHAR)) {
-			checkStringFieldValue(fieldNames[fieldIndex - 1], lValue.toString().length(), fieldPrecisions[fieldIndex - 1]);
+			checkStringFieldValue(fieldNames[fieldIndex - 1], lValue.toString().length(), fieldLengths[fieldIndex - 1]);
 		}
 		((RowLineSet) lines.get(lineIndex - 1)).set(fieldIndex - 1, lValue);
 	}
@@ -431,11 +392,6 @@ public class DataTableImpl extends DataQueryImpl implements DataTable, InternalD
 				modifyLines.add((RowLineSet) lines.get(i));
 			}
 		}
-	}
-
-	@Override
-	public boolean[] getFieldUseSQLKeyword() {
-		return fieldUseSQLKeyword;
 	}
 
 	@Override
@@ -477,5 +433,10 @@ public class DataTableImpl extends DataQueryImpl implements DataTable, InternalD
 	@Override
 	public boolean isUseCache() {
 		return useCache;
+	}
+
+	@Override
+	public String getAlias() {
+		return alias;
 	}
 }

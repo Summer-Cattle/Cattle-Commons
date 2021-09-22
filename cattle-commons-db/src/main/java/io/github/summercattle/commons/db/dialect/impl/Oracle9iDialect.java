@@ -15,59 +15,71 @@
  */
 package io.github.summercattle.commons.db.dialect.impl;
 
-import java.sql.Connection;
-import java.util.Locale;
-
 import io.github.summercattle.commons.db.constants.DataType;
-import io.github.summercattle.commons.exception.CommonException;
+import io.github.summercattle.commons.db.dialect.pagination.AbstractLimitHandler;
+import io.github.summercattle.commons.db.dialect.pagination.LimitHandler;
 
 public class Oracle9iDialect extends Oracle8iDialect {
 
-	public Oracle9iDialect(Connection conn, String sqlKeywords) {
-		super(conn, sqlKeywords);
-	}
+	private static final LimitHandler LIMIT_HANDLER = new AbstractLimitHandler() {
+
+		private static final String ROW_NUMBER_ALIAS = "rownum_";
+
+		@Override
+		public String processSql(String sql, int startRow) {
+			boolean hasOffset = startRow > 0;
+			sql = sql.trim();
+			String forUpdateClause = null;
+			boolean isForUpdate = false;
+			final int forUpdateIndex = sql.toLowerCase().lastIndexOf("for update");
+			if (forUpdateIndex > -1) {
+				// save 'for update ...' and then remove it
+				forUpdateClause = sql.substring(forUpdateIndex);
+				sql = sql.substring(0, forUpdateIndex - 1);
+				isForUpdate = true;
+			}
+			StringBuilder pagingSelect = new StringBuilder(sql.length() + 100);
+			if (hasOffset) {
+				pagingSelect.append("select * from ( select row_.*, rownum " + ROW_NUMBER_ALIAS + " from ( ");
+			}
+			else {
+				pagingSelect.append("select * from ( ");
+			}
+			pagingSelect.append(sql);
+			if (hasOffset) {
+				pagingSelect.append(" ) row_ where rownum <= ?) where " + ROW_NUMBER_ALIAS + " > ?");
+			}
+			else {
+				pagingSelect.append(" ) where rownum <= ?");
+			}
+			if (isForUpdate) {
+				pagingSelect.append(" ");
+				pagingSelect.append(forUpdateClause);
+			}
+			return pagingSelect.toString();
+		}
+
+		@Override
+		public boolean useMaxForLimit() {
+			return true;
+		}
+
+		@Override
+		public boolean isFilterPageFields() {
+			return true;
+		}
+
+		@Override
+		public String[] getFilterPageFields() {
+			return new String[] { ROW_NUMBER_ALIAS };
+		}
+	};
 
 	@Override
-	public String getCurrentTimestampSelectString() {
-		return "select systimestamp from dual";
-	}
-
-	@Override
-	public String getCurrentTimestampSQLFunctionName() {
-		return "current_timestamp";
-	}
-
-	@Override
-	public String getPageLimitString(String sql, int startRowNum, int perPageSize) throws CommonException {
-		String forUpdateClause = null;
-		boolean isForUpdate = false;
-		final int forUpdateIndex = sql.toLowerCase(Locale.ROOT).lastIndexOf("for update");
-		if (forUpdateIndex > -1) {
-			// save 'for update ...' and then remove it
-			forUpdateClause = sql.substring(forUpdateIndex);
-			sql = sql.substring(0, forUpdateIndex - 1);
-			isForUpdate = true;
-		}
-		StringBuilder pagingSelect = new StringBuilder(sql.length() + 100);
-		if (startRowNum > 0) {
-			pagingSelect.append("select * from (select row_.*, rownum " + ROW_NUMBER_FIELD + " from (");
-		}
-		else {
-			pagingSelect.append("select * from (");
-		}
-		pagingSelect.append(sql);
-		if (startRowNum > 0) {
-			pagingSelect.append(") row_ where rownum<=" + String.valueOf(startRowNum + perPageSize) + ") where " + ROW_NUMBER_FIELD + ">"
-					+ String.valueOf(startRowNum));
-		}
-		else {
-			pagingSelect.append(") where rownum<=" + String.valueOf(perPageSize));
-		}
-		if (isForUpdate) {
-			pagingSelect.append(" ");
-			pagingSelect.append(forUpdateClause);
-		}
-		return pagingSelect.toString();
+	protected void registerCharacterTypeMappings() {
+		registerColumnType(DataType.String, 4000, "varchar2", "varchar2($l char)");
+		registerColumnType(DataType.String, "long");
+		registerColumnType(DataType.NString, "nvarchar2", "nvarchar2($l)");
 	}
 
 	@Override
@@ -78,7 +90,23 @@ public class Oracle9iDialect extends Oracle8iDialect {
 	}
 
 	@Override
-	public String getQuerySequencesString() {
-		return "select sequence_name from user_sequences";
+	public LimitHandler getLimitHandler() {
+		return LIMIT_HANDLER;
+	}
+
+	@Override
+	public String getSelectClauseNullString(int sqlType) {
+		return getBasicSelectClauseNullString(sqlType);
+	}
+
+	@Override
+	public String getCurrentTimestampSelectString() {
+		return "select systimestamp from dual";
+	}
+
+	@Override
+	public String getCurrentTimestampSQLFunctionName() {
+		// the standard SQL function name is current_timestamp...
+		return "current_timestamp";
 	}
 }

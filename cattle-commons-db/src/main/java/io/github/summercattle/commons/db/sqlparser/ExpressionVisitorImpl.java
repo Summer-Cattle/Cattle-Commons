@@ -15,7 +15,6 @@
  */
 package io.github.summercattle.commons.db.sqlparser;
 
-import net.sf.jsqlparser.expression.AllComparisonExpression;
 import net.sf.jsqlparser.expression.AnalyticExpression;
 import net.sf.jsqlparser.expression.AnyComparisonExpression;
 import net.sf.jsqlparser.expression.ArrayConstructor;
@@ -24,6 +23,7 @@ import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.CaseExpression;
 import net.sf.jsqlparser.expression.CastExpression;
 import net.sf.jsqlparser.expression.CollateExpression;
+import net.sf.jsqlparser.expression.ConnectByRootOperator;
 import net.sf.jsqlparser.expression.DateTimeLiteralExpression;
 import net.sf.jsqlparser.expression.DateValue;
 import net.sf.jsqlparser.expression.DoubleValue;
@@ -35,7 +35,9 @@ import net.sf.jsqlparser.expression.HexValue;
 import net.sf.jsqlparser.expression.IntervalExpression;
 import net.sf.jsqlparser.expression.JdbcNamedParameter;
 import net.sf.jsqlparser.expression.JdbcParameter;
+import net.sf.jsqlparser.expression.JsonAggregateFunction;
 import net.sf.jsqlparser.expression.JsonExpression;
+import net.sf.jsqlparser.expression.JsonFunction;
 import net.sf.jsqlparser.expression.KeepExpression;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.MySQLGroupConcat;
@@ -45,6 +47,7 @@ import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.NumericBind;
 import net.sf.jsqlparser.expression.OracleHierarchicalExpression;
 import net.sf.jsqlparser.expression.OracleHint;
+import net.sf.jsqlparser.expression.OracleNamedFunctionParameter;
 import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.RowConstructor;
 import net.sf.jsqlparser.expression.RowGetExpression;
@@ -308,11 +311,6 @@ public class ExpressionVisitorImpl implements ExpressionVisitor {
 	}
 
 	@Override
-	public void visit(AllComparisonExpression allComparisonExpression) {
-		allComparisonExpression.getSubSelect().getSelectBody().accept(new SelectVisitorImpl());
-	}
-
-	@Override
 	public void visit(AnyComparisonExpression anyComparisonExpression) {
 		anyComparisonExpression.getSubSelect().getSelectBody().accept(new SelectVisitorImpl());
 	}
@@ -487,6 +485,30 @@ public class ExpressionVisitorImpl implements ExpressionVisitor {
 
 	@Override
 	public void visit(TimezoneExpression aThis) {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void visit(JsonAggregateFunction aThis) {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void visit(JsonFunction aThis) {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void visit(ConnectByRootOperator aThis) {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void visit(OracleNamedFunctionParameter aThis) {
 		// TODO Auto-generated method stub
 
 	}

@@ -61,28 +61,28 @@ public interface DalContext extends AbstractDalContext {
 
 	/**
 	 * 查询
-	 * @param tableName 表名
+	 * @param name 表名
 	 * @param condition 条件
 	 * @param params 参数
 	 * @return 数据结果集
 	 * @throws CommonException 异常
 	 */
-	DataTable select(String tableName, String condition, Object[] params) throws CommonException;
+	DataTable select(String name, String condition, Object[] params) throws CommonException;
 
 	/**
 	 * 查询
-	 * @param tableName 表名
+	 * @param name 表名
 	 * @param orderBy 排序
 	 * @param condition 条件
 	 * @param params 参数
 	 * @return 数据结果集
 	 * @throws CommonException 异常
 	 */
-	DataTable select(String tableName, String orderBy, String condition, Object[] params) throws CommonException;
+	DataTable select(String name, String orderBy, String condition, Object[] params) throws CommonException;
 
 	/**
 	 * 查询
-	 * @param tableName 表名
+	 * @param name 表名
 	 * @param orderBy 排序
 	 * @param condition 条件
 	 * @param params 参数
@@ -90,41 +90,41 @@ public interface DalContext extends AbstractDalContext {
 	 * @return 数据结果集
 	 * @throws CommonException 异常
 	 */
-	DataTable select(String tableName, String orderBy, String condition, Object[] params, boolean includeDeleted) throws CommonException;
+	DataTable select(String name, String orderBy, String condition, Object[] params, boolean includeDeleted) throws CommonException;
 
 	/**
 	 * 查询
-	 * @param tableName 表名
+	 * @param name 表名
 	 * @param primaryValue 主键值
 	 * @return 数据结果集
 	 * @throws CommonException 异常
 	 */
-	DataTable select(String tableName, Object primaryValue) throws CommonException;
+	DataTable select(String name, Object primaryValue) throws CommonException;
 
 	/**
 	 * 查询
-	 * @param tableName 表名
+	 * @param name 表名
 	 * @return 数据结果集
 	 * @throws CommonException 异常
 	 */
-	DataTable select(String tableName) throws CommonException;
+	DataTable select(String name) throws CommonException;
 
 	/**
 	 * 查询
-	 * @param tableName 表名
+	 * @param name 表名
 	 * @param includeDeleted 包括删除
 	 * @return 数据结果集
 	 * @throws CommonException 异常
 	 */
-	DataTable select(String tableName, boolean includeDeleted) throws CommonException;
+	DataTable select(String name, boolean includeDeleted) throws CommonException;
 
 	/**
 	 * 创建空数据结果集
-	 * @param tableName 表名
+	 * @param name 表名
 	 * @return 数据结果集
 	 * @throws CommonException 异常
 	 */
-	DataTable create(String tableName) throws CommonException;
+	DataTable create(String name) throws CommonException;
 
 	/**
 	 * 保存
@@ -135,20 +135,20 @@ public interface DalContext extends AbstractDalContext {
 
 	/**
 	 * 删除
-	 * @param tableName 表名
+	 * @param name 表名
 	 * @param condition 条件
 	 * @param params 参数
 	 * @throws CommonException 异常
 	 */
-	void delete(String tableName, String condition, Object[] params) throws CommonException;
+	void delete(String name, String condition, Object[] params) throws CommonException;
 
 	/**
 	 * 删除
-	 * @param tableName 表名
+	 * @param name 表名
 	 * @param primaryValue 主键值
 	 * @throws CommonException 异常
 	 */
-	void delete(String tableName, Object primaryValue) throws CommonException;
+	void delete(String name, Object primaryValue) throws CommonException;
 
 	/**
 	 * 查询

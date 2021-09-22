@@ -4,10 +4,10 @@
 	<parent>
 	    <groupId>io.github.summercattle</groupId>
 	    <artifactId>cattle-build</artifactId>
-		<version>0.0.1.SP2</version>
+		<version>0.0.1.SP3</version>
 	</parent>
     <artifactId>cattle-commons</artifactId>
-	<version>0.0.1</version>
+	<version>0.0.1.SP1</version>
 	<packaging>pom</packaging>
 	<name>${project.artifactId}</name>
     <description>Cattle Framework Commons Component parent pom, managing plugins and dependencies for Cattle Framework Commons Component projects</description>
@@ -25,14 +25,20 @@
     </organization>
 	<developers>
 		<developer>
+		    <id>juhua</id>
 			<name>juhua</name>
-			<url>https://github.com/Summer-Cattle</url>
+			<organization>Summer Cattle Team</organization>
+			<organizationUrl>https://github.com/Summer-Cattle</organizationUrl>
+            <roles>
+                <role>developer</role>
+            </roles>
 		</developer>
 	</developers>
 	<scm>
-		<url>https://github.com/Summer-Cattle/Cattle-Commons.git</url>
-		<connection>scm:git:https://git@github.com/Summer-Cattle/Cattle-Commons.git</connection>
-	</scm>                                                                                                        	 	
+	    <connection>scm:git:https://github.com/Summer-Cattle/Cattle-Commons.git</connection>
+		<developerConnection>scm:git:git@github.com:Summer-Cattle/Cattle-Commons.git</developerConnection>
+		<url>https://github.com/Summer-Cattle/Cattle-Commons</url>
+	</scm>
     <modules>
 	    <module>cattle-commons-dependencies</module>
 		<module>cattle-commons-public</module>
@@ -41,9 +47,10 @@
 		<module>cattle-commons-quartz</module>
 		<module>cattle-commons-webmvc</module>
 		<module>cattle-commons-webflux</module>
+		<module>cattle-commons-db-datasource</module>
 	</modules>
 	<properties>
-	    <cattle-commons.version>0.0.1</cattle-commons.version>
+	    <cattle-commons.version>0.0.1.SP1</cattle-commons.version>
 	</properties>
 	<dependencyManagement>
         <dependencies>
@@ -69,52 +76,11 @@
 		</plugins>
 	</build>
 	<profiles>
-        <profile>
-		    <id>cattle</id>
+		<profile>
+            <id>central</id>
 			<activation>
 			    <activeByDefault>true</activeByDefault>
 			</activation>
-			<build>
-			    <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-pmd-plugin</artifactId>
-			        </plugin>
-                    <plugin>
-			            <groupId>org.codehaus.mojo</groupId>
-				        <artifactId>versions-maven-plugin</artifactId>
-			        </plugin>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>flatten-maven-plugin</artifactId>
-                    </plugin>
-				</plugins>
-			</build>
-			<repositories>
-			    <repository>
-				    <id>cattle</id>
-					<url>https://maven.bokesoft.com/artifactory/maven-public</url>
-				</repository>
-			</repositories>
-			<pluginRepositories>
-			    <pluginRepository>
-				    <id>cattle</id>
-					<url>https://maven.bokesoft.com/artifactory/maven-public</url>
-				</pluginRepository>
-			</pluginRepositories>
-			<distributionManagement>
-			    <snapshotRepository>
-				    <id>cattle</id>
-					<url>https://maven.bokesoft.com/artifactory/libs-snapshot-local</url>
-				</snapshotRepository>
-				<repository>
-				    <id>cattle</id>
-					<url>https://maven.bokesoft.com/artifactory/libs-release-local</url>
-				</repository>
-			</distributionManagement>
-		</profile>
-		<profile>
-            <id>central</id>
 			<build>
 			    <plugins>
                     <plugin>

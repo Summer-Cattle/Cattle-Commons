@@ -48,11 +48,11 @@ public class PageDataQueryImpl extends DataQueryImpl implements PageDataQuery {
 		try {
 			ResultSetMetaData metaData = rs.getMetaData();
 			int columnCount = metaData.getColumnCount();
-			boolean isFilterField = dialect.isFilterPageFields();
+			boolean isFilterField = dialect.getLimitHandler().isFilterPageFields();
 			String[] filterFields = null;
 			int realColumnCount = columnCount;
 			if (isFilterField) {
-				filterFields = dialect.getFilterPageFields();
+				filterFields = dialect.getLimitHandler().getFilterPageFields();
 				int filterColumn = 0;
 				for (int i = 0; i < columnCount; i++) {
 					String jdbcColumnName = metaData.getColumnName(i + 1).toUpperCase();

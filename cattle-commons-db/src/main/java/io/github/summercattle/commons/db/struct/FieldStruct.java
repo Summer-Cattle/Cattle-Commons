@@ -15,8 +15,6 @@
  */
 package io.github.summercattle.commons.db.struct;
 
-import io.github.summercattle.commons.db.constants.DataType;
-
 /**
  * 字段结构
  */
@@ -27,12 +25,6 @@ public interface FieldStruct {
 	 * @return 字段名
 	 */
 	String getName();
-
-	/**
-	 * 数据类型
-	 * @return 数据类型
-	 */
-	DataType getType();
 
 	/**
 	 * Jdbc数据类型
@@ -50,17 +42,11 @@ public interface FieldStruct {
 	 * 长度
 	 * @return 长度
 	 */
-	long getSize();
+	long getLength();
 
 	/**
-	 * 小数尾数
-	 * @return 小数尾数
+	 * 精度
+	 * @return 精度
 	 */
-	int getDecimalDigits();
-
-	/**
-	 * 是否为Sql关键字
-	 * @return 是否为Sql关键字
-	 */
-	boolean isSqlKeyword();
+	int getScale();
 }

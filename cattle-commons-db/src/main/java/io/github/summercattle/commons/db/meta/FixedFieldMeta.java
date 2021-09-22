@@ -40,7 +40,7 @@ public interface FixedFieldMeta extends FieldMeta {
 	 * 精度	
 	 * @return 精度
 	 */
-	int getPrecision();
+	int getScale();
 
 	/**
 	 * 缺省值

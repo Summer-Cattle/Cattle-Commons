@@ -16,8 +16,9 @@
 package io.github.summercattle.commons.db.handle.impl;
 
 import java.math.BigDecimal;
-import java.sql.Connection;
+import java.sql.Types;
 
+import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,9 +28,7 @@ import com.google.inject.Inject;
 import io.github.summercattle.commons.db.configure.DbProperties;
 import io.github.summercattle.commons.db.constants.DataConstants;
 import io.github.summercattle.commons.db.constants.DataType;
-import io.github.summercattle.commons.db.constants.DatabaseType;
 import io.github.summercattle.commons.db.dialect.Dialect;
-import io.github.summercattle.commons.db.dialect.DialectFactory;
 import io.github.summercattle.commons.db.handle.DbMetaModel;
 import io.github.summercattle.commons.db.handle.DbStruct;
 import io.github.summercattle.commons.db.handle.DbTransaction;
@@ -37,6 +36,7 @@ import io.github.summercattle.commons.db.handle.SimpleDalContext;
 import io.github.summercattle.commons.db.meta.FieldMeta;
 import io.github.summercattle.commons.db.meta.FieldMetaMode;
 import io.github.summercattle.commons.db.meta.FixedFieldMeta;
+import io.github.summercattle.commons.db.meta.IndexFieldMeta;
 import io.github.summercattle.commons.db.meta.IndexMeta;
 import io.github.summercattle.commons.db.meta.ReferenceFieldMeta;
 import io.github.summercattle.commons.db.meta.TableMeta;
@@ -44,6 +44,7 @@ import io.github.summercattle.commons.db.struct.TableFieldStruct;
 import io.github.summercattle.commons.db.struct.TableIndexStruct;
 import io.github.summercattle.commons.db.struct.TableObjectStruct;
 import io.github.summercattle.commons.db.struct.ViewObjectStruct;
+import io.github.summercattle.commons.db.utils.JdbcUtils;
 import io.github.summercattle.commons.exception.CommonException;
 import io.github.summercattle.commons.utils.auxiliary.NumberUtils;
 import io.github.summercattle.commons.utils.cache.Cache;
@@ -63,9 +64,19 @@ public class DbStructImpl implements DbStruct {
 	@Inject
 	private CacheManager cacheManager;
 
+	private static final String PRIMARY_FIELD_COMMENT = "主键";
+
+	private static final String CREATE_TIME_FIELD_COMMENT = "创建时间";
+
+	private static final String UPDATE_TIME_FIELD_COMMENT = "最后修改时间";
+
+	private static final String VERSION_FIELD_COMMENT = "版本";
+
+	private static final String DELETED_FIELD_COMMENT = "删除标识";
+
 	@Override
-	public TableObjectStruct getTableStruct(String tableName) throws CommonException {
-		TableMeta tableMeta = dbMetaModel.getTable(tableName);
+	public TableObjectStruct getTableStruct(String name) throws CommonException {
+		TableMeta tableMeta = dbMetaModel.getTable(name);
 		DbProperties dbProperties = SpringContext.getBean(DbProperties.class);
 		return getTableStruct(dbProperties, tableMeta);
 	}
@@ -80,75 +91,80 @@ public class DbStructImpl implements DbStruct {
 				throw new CommonException("数据表'" + tableMeta.getName() + "'不存在");
 			}
 			else {
-				TableObjectStruct tableStruct = dbTransaction.doSimpleDal(context -> {
-					TableObjectStruct lTableStruct = context.getDialect().getTableStruct(context.getConnection(), tableMeta.getName());
+				TableObjectStruct tableStruct = dbTransaction.doSimpleDal(ctx -> {
+					if (!ctx.getDialect().getStructHandler().supportsTable()) {
+						throw new CommonException("不支持数据表结构的查询");
+					}
+					TableObjectStruct lTableStruct = ctx.getDialect().getStructHandler().getTable(ctx.getConnection(), tableMeta.getName());
 					//检查表的字段
 					FieldMeta[] fieldMetas = tableMeta.getFields();
 					for (FieldMeta fieldMeta : fieldMetas) {
+						int length;
+						int scale = 0;
 						DataType dataType;
 						if (FieldMetaMode.Fixed == fieldMeta.getMode()) {
 							dataType = ((FixedFieldMeta) fieldMeta).getType();
+							length = ((FixedFieldMeta) fieldMeta).getLength();
+							scale = ((FixedFieldMeta) fieldMeta).getScale();
 						}
 						else if (FieldMetaMode.Reference == fieldMeta.getMode()) {
 							TableMeta referenceTable = dbMetaModel.getTable(((ReferenceFieldMeta) fieldMeta).getReferenceTableName());
 							if (referenceTable.isPrimaryKeyUseNumber()) {
 								dataType = DataType.Number;
+								length = 10;
 							}
 							else {
-								dataType = context.getDialect().supportsUnicodeStringType() ? DataType.NString : DataType.String;
+								dataType = DataType.NString;
+								length = 50;
 							}
 						}
 						else {
 							throw new CommonException(
 									"表'" + tableMeta.getName() + "'的字段'" + fieldMeta.getName() + "'模式'" + fieldMeta.getMode().toString() + "'不支持");
 						}
-						if ((dataType == DataType.NString || dataType == DataType.NClob) && !context.getDialect().supportsUnicodeStringType()) {
-							dataType = dataType == DataType.NString ? DataType.String : DataType.Clob;
-						}
-						TableFieldStruct fieldStructure = (TableFieldStruct) lTableStruct.getField(fieldMeta.getName());
-						if (fieldStructure != null) {
-							checkTableColumn(context, tableMeta.getName(), fieldStructure, dataType);
+						TableFieldStruct fieldStruct = (TableFieldStruct) lTableStruct.getField(fieldMeta.getName());
+						if (fieldStruct != null) {
+							checkTableColumn(ctx, tableMeta.getName(), fieldStruct, dataType, length, scale);
 						}
 						else {
 							throw new CommonException("数据表'" + tableMeta.getName() + "'的字段'" + fieldMeta.getName() + "'不存在");
 						}
 					}
-					TableFieldStruct createDateFieldStructure = (TableFieldStruct) lTableStruct.getField(dbProperties.getCreateTimeField());
-					if (createDateFieldStructure != null) {
-						checkTableColumn(context, tableMeta.getName(), createDateFieldStructure, DataType.Timestamp);
+					TableFieldStruct createDateFieldStruct = (TableFieldStruct) lTableStruct.getField(dbProperties.getCreateTimeField());
+					if (createDateFieldStruct != null) {
+						checkTableColumn(ctx, tableMeta.getName(), createDateFieldStruct, DataType.Timestamp, 0, 0);
 					}
 					else {
 						throw new CommonException("没有找到表'" + tableName + "'的创建时间字段" + dbProperties.getCreateTimeField());
 					}
-					TableFieldStruct modifyDateFieldStructure = (TableFieldStruct) lTableStruct.getField(dbProperties.getUpdateTimeField());
-					if (modifyDateFieldStructure != null) {
-						checkTableColumn(context, tableMeta.getName(), modifyDateFieldStructure, DataType.Timestamp);
+					TableFieldStruct modifyDateFieldStruct = (TableFieldStruct) lTableStruct.getField(dbProperties.getUpdateTimeField());
+					if (modifyDateFieldStruct != null) {
+						checkTableColumn(ctx, tableMeta.getName(), modifyDateFieldStruct, DataType.Timestamp, 0, 0);
 					}
 					else {
 						throw new CommonException("没有找到表'" + tableName + "'的修改时间字段" + dbProperties.getUpdateTimeField());
 					}
-					TableFieldStruct versionFieldStructure = (TableFieldStruct) lTableStruct.getField(dbProperties.getVersionField());
-					if (versionFieldStructure != null) {
-						checkTableColumn(context, tableMeta.getName(), versionFieldStructure, DataType.Number);
+					TableFieldStruct versionFieldStruct = (TableFieldStruct) lTableStruct.getField(dbProperties.getVersionField());
+					if (versionFieldStruct != null) {
+						checkTableColumn(ctx, tableMeta.getName(), versionFieldStruct, DataType.Number, 10, 0);
 					}
 					else {
 						throw new CommonException("没有找到表'" + tableName + "'的版本字段" + dbProperties.getVersionField());
 					}
-					TableFieldStruct deletedFieldStructure = (TableFieldStruct) lTableStruct.getField(dbProperties.getDeletedField());
-					if (deletedFieldStructure != null) {
-						checkTableColumn(context, tableMeta.getName(), deletedFieldStructure, DataType.Boolean);
+					TableFieldStruct deletedFieldStruct = (TableFieldStruct) lTableStruct.getField(dbProperties.getDeletedField());
+					if (deletedFieldStruct != null) {
+						checkTableColumn(ctx, tableMeta.getName(), deletedFieldStruct, DataType.Boolean, 0, 0);
 					}
 					else {
 						throw new CommonException("没有找到表'" + tableName + "'的标识删除字段" + dbProperties.getDeletedField());
 					}
-					TableFieldStruct primaryFieldStructure = (TableFieldStruct) lTableStruct.getField(dbProperties.getPrimaryField());
-					if (primaryFieldStructure != null) {
+					TableFieldStruct primaryFieldStruct = (TableFieldStruct) lTableStruct.getField(dbProperties.getPrimaryField());
+					if (primaryFieldStruct != null) {
 						if (tableMeta.isPrimaryKeyUseNumber()) {
-							checkTableColumn(context, tableMeta.getName(), primaryFieldStructure, DataType.Number);
+							checkTableColumn(ctx, tableMeta.getName(), primaryFieldStruct, DataType.Number, 10, 0);
 						}
 						else {
-							checkTableColumn(context, tableMeta.getName(), primaryFieldStructure,
-									context.getDialect().supportsUnicodeStringType() ? DataType.NString : DataType.String);
+							checkTableColumn(ctx, tableMeta.getName(), primaryFieldStruct, DataType.NString, 50, 0);
 						}
 					}
 					else {
@@ -164,357 +180,284 @@ public class DbStructImpl implements DbStruct {
 	}
 
 	@Override
-	public void checkTablesAndIndexes(DbProperties dbProperties, Connection conn) throws CommonException {
-		Dialect dialect = DialectFactory.getDialect(conn);
-		SimpleDalContext context = new SimpleDalContextImpl(dialect, conn);
+	public void check(DbProperties dbProperties) throws CommonException {
+		Dialect dialect = SpringContext.getBean(Dialect.class);
+		if (!dialect.getStructHandler().supportsTable()) {
+			return;
+		}
 		logger.info("检查数据表开始");
 		TableMeta[] tableMetas = dbMetaModel.getTables();
 		for (TableMeta tableMeta : tableMetas) {
-			logger.info("检查数据表名:" + tableMeta.getName() + (StringUtils.isNotBlank(tableMeta.getComment()) ? "(" + tableMeta.getComment() + ")" : ""));
-			if (!context.getDialect().existTable(context.getConnection(), tableMeta.getName())) {
-				createTablesAndIndexes(dbProperties, context, tableMeta);
-			}
-			else {
-				TableObjectStruct tableStructure = context.getDialect().getTableStruct(context.getConnection(), tableMeta.getName());
-				//检查表信息
-				if (!io.github.summercattle.commons.utils.auxiliary.StringUtils.equals(tableMeta.getComment(), tableStructure.getComment())) {
-					if (context.getDialect().getType() == DatabaseType.MySQL) {
-						String sql = "alter table " + context.getDialect().getSQLKeyword(tableMeta.getName()) + " comment='"
-								+ (StringUtils.isNotBlank(tableMeta.getComment()) ? tableMeta.getComment() : "") + "'";
-						context.execute(sql);
-					}
-					else {
-						String sql = "comment on table " + context.getDialect().getSQLKeyword(tableMeta.getName()) + " is '"
-								+ (StringUtils.isNotBlank(tableMeta.getComment()) ? tableMeta.getComment() : "") + "'";
-						context.execute(sql);
-					}
-				}
-				//检查表的字段
-				FieldMeta[] fieldMetas = tableMeta.getFields();
-				for (FieldMeta fieldMeta : fieldMetas) {
-					DataType dataType;
-					int length;
-					int precision = 0;
-					String defaultValue = "";
-					if (FieldMetaMode.Fixed == fieldMeta.getMode()) {
-						dataType = ((FixedFieldMeta) fieldMeta).getType();
-						length = ((FixedFieldMeta) fieldMeta).getLength();
-						precision = ((FixedFieldMeta) fieldMeta).getPrecision();
-						defaultValue = ((FixedFieldMeta) fieldMeta).getDefault();
-					}
-					else if (FieldMetaMode.Reference == fieldMeta.getMode()) {
-						TableMeta referenceTable = dbMetaModel.getTable(((ReferenceFieldMeta) fieldMeta).getReferenceTableName());
-						if (referenceTable.isPrimaryKeyUseNumber()) {
-							dataType = DataType.Number;
-							length = 10;
-						}
-						else {
-							dataType = context.getDialect().supportsUnicodeStringType() ? DataType.NString : DataType.String;
-							length = 50;
-						}
-					}
-					else {
-						throw new CommonException(
-								"表'" + tableMeta.getName() + "'的字段'" + fieldMeta.getName() + "'模式'" + fieldMeta.getMode().toString() + "'不支持");
-					}
-					if ((dataType == DataType.NString || dataType == DataType.NClob) && !context.getDialect().supportsUnicodeStringType()) {
-						dataType = dataType == DataType.NString ? DataType.String : DataType.Clob;
-					}
-					TableFieldStruct fieldStructure = (TableFieldStruct) tableStructure.getField(fieldMeta.getName());
-					if (fieldStructure != null) {
-						processTableColumn(context, tableMeta.getName(), fieldStructure, dataType, length, precision, fieldMeta.allowNull(),
-								defaultValue, fieldMeta.getComment());
-					}
-					else {
-						String sql = "alter table " + context.getDialect().getSQLKeyword(tableMeta.getName()) + " "
-								+ context.getDialect().getAddColumnString() + " ";
-						sql += context.getDialect().getSQLKeyword(fieldMeta.getName()) + " ";
-						sql += context.getDialect().getTypeName(dataType, length, precision);
-						if (StringUtils.isNotBlank(defaultValue)) {
-							sql += " default ";
-							if (dataType == DataType.String || dataType == DataType.NString || dataType == DataType.Clob
-									|| dataType == DataType.NClob) {
-								sql += "'" + defaultValue + "'";
-							}
-							else {
-								sql += defaultValue;
-							}
-						}
-						if (!fieldMeta.allowNull()) {
-							sql += " not null";
-						}
-						if (context.getDialect().getType() == DatabaseType.MySQL && StringUtils.isNotBlank(fieldMeta.getComment())) {
-							sql += " comment '" + fieldMeta.getComment() + "'";
-						}
-						context.execute(sql);
-						if (StringUtils.isNotBlank(fieldMeta.getComment()) && (context.getDialect().getType() == DatabaseType.H2
-								|| context.getDialect().getType() == DatabaseType.Oracle || context.getDialect().getType() == DatabaseType.DB2)) {
-							sql = "comment on column " + context.getDialect().getSQLKeyword(tableMeta.getName()) + "."
-									+ context.getDialect().getSQLKeyword(fieldMeta.getName()) + " is '" + fieldMeta.getComment() + "'";
-							context.execute(sql);
-						}
-					}
-				}
-				TableFieldStruct createDateFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getCreateTimeField());
-				if (createDateFieldStructure != null) {
-					processTableColumn(context, tableMeta.getName(), createDateFieldStructure, DataType.Timestamp, 0, 0, true, null, null);
+			dbTransaction.doSimpleDal(ctx -> {
+				logger.info(
+						"检查数据表名:" + tableMeta.getName() + (StringUtils.isNotBlank(tableMeta.getComment()) ? "(" + tableMeta.getComment() + ")" : ""));
+				if (!ctx.getDialect().getStructHandler().existTable(ctx.getConnection(), tableMeta.getName())) {
+					create(dbProperties, ctx, tableMeta);
 				}
 				else {
-					addTableColumn(context, tableMeta.getName(), dbProperties.getCreateTimeField(),
-							context.getDialect().getTypeName(DataType.Timestamp, 0, 0), null);
+					TableObjectStruct tableStruct = ctx.getDialect().getStructHandler().getTable(ctx.getConnection(), tableMeta.getName());
+					checkModify(dbProperties, ctx, tableMeta, tableStruct);
 				}
-				TableFieldStruct modifyDateFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getUpdateTimeField());
-				if (modifyDateFieldStructure != null) {
-					processTableColumn(context, tableMeta.getName(), modifyDateFieldStructure, DataType.Timestamp, 0, 0, true, null, null);
-				}
-				else {
-					addTableColumn(context, tableMeta.getName(), dbProperties.getUpdateTimeField(),
-							context.getDialect().getTypeName(DataType.Timestamp, 0, 0), null);
-				}
-				TableFieldStruct versionFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getVersionField());
-				if (versionFieldStructure != null) {
-					processTableColumn(context, tableMeta.getName(), versionFieldStructure, DataType.Number, 10, 0, true, "0", null);
-				}
-				else {
-					addTableColumn(context, tableMeta.getName(), dbProperties.getVersionField(),
-							context.getDialect().getTypeName(DataType.Number, 10, 0), "0");
-				}
-				TableFieldStruct deletedFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getDeletedField());
-				if (deletedFieldStructure != null) {
-					processTableColumn(context, tableMeta.getName(), deletedFieldStructure, DataType.Boolean, 0, 0, true, "0", null);
-				}
-				else {
-					addTableColumn(context, tableMeta.getName(), dbProperties.getDeletedField(),
-							context.getDialect().getTypeName(DataType.Number, 1, 0), "0");
-				}
-				TableFieldStruct primaryFieldStructure = (TableFieldStruct) tableStructure.getField(dbProperties.getPrimaryField());
-				if (primaryFieldStructure != null) {
-					if (tableMeta.isPrimaryKeyUseNumber()) {
-						processTableColumn(context, tableMeta.getName(), primaryFieldStructure, DataType.Number, 10, 0, false, null, null);
-					}
-					else {
-						processTableColumn(context, tableMeta.getName(), primaryFieldStructure,
-								context.getDialect().supportsUnicodeStringType() ? DataType.NString : DataType.String, 50, 0, false, null, null);
-					}
-				}
-				else {
-					throw new CommonException("表" + tableMeta.getName() + "的主键字段" + dbProperties.getPrimaryField() + "不存在");
-				}
-				//检查表的主键
-				if (tableStructure.getPrimaryKey() != null) {
-					if (!tableStructure.getPrimaryKey().getFields().equalsIgnoreCase(dbProperties.getPrimaryField())) {
-						String sql = "alter table " + context.getDialect().getSQLKeyword(tableMeta.getName()) + " "
-								+ context.getDialect().getDropPrimaryKeyConstraintString(tableMeta.getPrimaryKeyName());
-						context.execute(sql);
-						createTablePrimaryKey(dbProperties, context, tableMeta);
-					}
-				}
-				else {
-					createTablePrimaryKey(dbProperties, context, tableMeta);
-				}
-				//检查表的索引
-				IndexMeta[] indexMetas = tableMeta.getIndexes();
-				for (IndexMeta indexMeta : indexMetas) {
-					TableIndexStruct indexStructure = tableStructure.getIndex(indexMeta.getName());
-					String metaIndexFields = "";
-					if (indexStructure != null) {
-						String[] fields = indexMeta.getFields().split(",");
-						for (int t = 0; t < fields.length; t++) {
-							if (t > 0) {
-								metaIndexFields += ",";
-							}
-							String[] indexFields = fields[t].split(":");
-							metaIndexFields += tableMeta.getField(indexFields[0]).getName();
-							if (indexFields.length == 2) {
-								metaIndexFields += ":" + indexFields[1];
-							}
-						}
-						if (!metaIndexFields.equalsIgnoreCase(indexStructure.getFields()) || indexMeta.isUnique() != indexStructure.isUnique()) {
-							String sql = context.getDialect().getDropIndexString(tableMeta.getName(), indexMeta.getName());
-							context.execute(sql);
-							createTableIndex(context, tableMeta, indexMeta);
-						}
-					}
-					else {
-						createTableIndex(context, tableMeta, indexMeta);
-					}
-				}
-			}
+				return null;
+			});
 		}
-		//在数据库不支持序列情况下,创建自定义序列表
-		if (!context.getDialect().supportsSequences()
-				&& !context.getDialect().existTable(context.getConnection(), DataConstants.SEQUENCE_TABLE_NAME)) {
-			createCustomSequenceTable(context);
+		if (!dialect.supportsSequences()) {
+			dbTransaction.doSimpleDal(ctx -> {
+				if (!ctx.getDialect().getStructHandler().existTable(ctx.getConnection(), DataConstants.SEQUENCE_TABLE_NAME)) {
+					createCustomSequenceTable(ctx);
+				}
+				return null;
+			});
 		}
 		logger.info("检查数据表结束");
 	}
 
-	private void checkTableColumn(SimpleDalContext context, String tableName, TableFieldStruct fieldStructure, DataType dataType)
+	private void checkModify(DbProperties dbProperties, SimpleDalContext ctx, TableMeta tableMeta, TableObjectStruct tableStruct)
 			throws CommonException {
-		if (null == fieldStructure.getType()) {
-			throw new CommonException(
-					"表'" + tableName + "'的字段'" + fieldStructure.getName() + "'的数据类型'" + fieldStructure.getTypeName() + "'不属于系统支持的数据类型");
+		//检查表信息
+		if (!io.github.summercattle.commons.utils.auxiliary.StringUtils.equals(tableMeta.getComment(), tableStruct.getComment())) {
+			String tableComment = ctx.getDialect().getTableComment(tableMeta.getComment());
+			if (StringUtils.isNotBlank(tableComment)) {
+				String sql = ctx.getDialect().getAlterTableString(tableMeta.getName()) + tableComment;
+				ctx.execute(sql);
+			}
+			if (ctx.getDialect().supportsCommentOn()) {
+				commentTable(ctx, tableMeta.getName(), tableMeta.getComment());
+			}
 		}
-		if (fieldStructure.getType() != dataType) {
-			boolean ignore = false;
-			if ((fieldStructure.getType() == DataType.String && dataType == DataType.NString)
-					|| (fieldStructure.getType() == DataType.NString && dataType == DataType.String)) {
-				ignore = true;
+		//检查表的字段
+		FieldMeta[] fieldMetas = tableMeta.getFields();
+		for (FieldMeta fieldMeta : fieldMetas) {
+			DataType dataType;
+			int length;
+			int scale = 0;
+			String defaultValue = "";
+			if (FieldMetaMode.Fixed == fieldMeta.getMode()) {
+				dataType = ((FixedFieldMeta) fieldMeta).getType();
+				length = ((FixedFieldMeta) fieldMeta).getLength();
+				scale = ((FixedFieldMeta) fieldMeta).getScale();
+				defaultValue = ((FixedFieldMeta) fieldMeta).getDefault();
 			}
-			if (context.getDialect().getType() == DatabaseType.MySQL && ((fieldStructure.getType() == DataType.Clob && dataType == DataType.NClob)
-					|| (fieldStructure.getType() == DataType.NClob && dataType == DataType.Clob))) {
-				ignore = true;
+			else if (FieldMetaMode.Reference == fieldMeta.getMode()) {
+				TableMeta referenceTable = dbMetaModel.getTable(((ReferenceFieldMeta) fieldMeta).getReferenceTableName());
+				if (referenceTable.isPrimaryKeyUseNumber()) {
+					dataType = DataType.Number;
+					length = 10;
+				}
+				else {
+					dataType = DataType.NString;
+					length = 50;
+				}
 			}
-			if (context.getDialect().getType() == DatabaseType.MySQL && ((fieldStructure.getType() == DataType.NString && dataType == DataType.NClob)
-					|| (fieldStructure.getType() == DataType.String && dataType == DataType.Clob))) {
-				ignore = true;
+			else {
+				throw new CommonException(
+						"表'" + tableMeta.getName() + "'的字段'" + fieldMeta.getName() + "'模式'" + fieldMeta.getMode().toString() + "'不支持");
 			}
-			if (dataType == DataType.Boolean && fieldStructure.getType() == DataType.Number && fieldStructure.getSize() == 1
-					&& fieldStructure.getDecimalDigits() == 0) {
-				ignore = true;
+			TableFieldStruct fieldStruct = (TableFieldStruct) tableStruct.getField(fieldMeta.getName());
+			if (fieldStruct != null) {
+				processTableColumn(ctx, tableMeta.getName(), fieldStruct, dataType, length, scale, fieldMeta.allowNull(), defaultValue,
+						fieldMeta.getComment());
 			}
-			if (!ignore) {
-				throw new CommonException("表'" + tableName + "'的字段'" + fieldStructure.getName() + "'的数据类型'" + fieldStructure.getType().toString()
-						+ "'与数据定义中的数据类型'" + dataType.toString() + "'不一致");
+			else {
+				addTableColumn(ctx, tableMeta.getName(), fieldMeta.getName(), dataType, length, scale, fieldMeta.allowNull(), defaultValue,
+						fieldMeta.getComment());
+			}
+		}
+		TableFieldStruct createDateFieldStruct = (TableFieldStruct) tableStruct.getField(dbProperties.getCreateTimeField());
+		if (createDateFieldStruct != null) {
+			processTableColumn(ctx, tableMeta.getName(), createDateFieldStruct, DataType.Timestamp, 0, 0, true, null, CREATE_TIME_FIELD_COMMENT);
+		}
+		else {
+			addTableColumn(ctx, tableMeta.getName(), dbProperties.getCreateTimeField(), DataType.Timestamp, 0, 0, true, null,
+					CREATE_TIME_FIELD_COMMENT);
+		}
+		TableFieldStruct modifyDateFieldStruct = (TableFieldStruct) tableStruct.getField(dbProperties.getUpdateTimeField());
+		if (modifyDateFieldStruct != null) {
+			processTableColumn(ctx, tableMeta.getName(), modifyDateFieldStruct, DataType.Timestamp, 0, 0, true, null, UPDATE_TIME_FIELD_COMMENT);
+		}
+		else {
+			addTableColumn(ctx, tableMeta.getName(), dbProperties.getUpdateTimeField(), DataType.Timestamp, 0, 0, true, null,
+					UPDATE_TIME_FIELD_COMMENT);
+		}
+		TableFieldStruct versionFieldStruct = (TableFieldStruct) tableStruct.getField(dbProperties.getVersionField());
+		if (versionFieldStruct != null) {
+			processTableColumn(ctx, tableMeta.getName(), versionFieldStruct, DataType.Number, 10, 0, false, "0", VERSION_FIELD_COMMENT);
+		}
+		else {
+			addTableColumn(ctx, tableMeta.getName(), dbProperties.getVersionField(), DataType.Number, 10, 0, false, "0", VERSION_FIELD_COMMENT);
+		}
+		TableFieldStruct deletedFieldStruct = (TableFieldStruct) tableStruct.getField(dbProperties.getDeletedField());
+		if (deletedFieldStruct != null) {
+			processTableColumn(ctx, tableMeta.getName(), deletedFieldStruct, DataType.Boolean, 0, 0, false, "0", DELETED_FIELD_COMMENT);
+		}
+		else {
+			addTableColumn(ctx, tableMeta.getName(), dbProperties.getDeletedField(), DataType.Boolean, 0, 0, false, "0", DELETED_FIELD_COMMENT);
+		}
+		TableFieldStruct primaryFieldStruct = (TableFieldStruct) tableStruct.getField(dbProperties.getPrimaryField());
+		if (primaryFieldStruct != null) {
+			if (tableMeta.isPrimaryKeyUseNumber()) {
+				processTableColumn(ctx, tableMeta.getName(), primaryFieldStruct, DataType.Number, 10, 0, false, null, PRIMARY_FIELD_COMMENT);
+			}
+			else {
+				processTableColumn(ctx, tableMeta.getName(), primaryFieldStruct, DataType.NString, 50, 0, false, null, PRIMARY_FIELD_COMMENT);
+			}
+		}
+		else {
+			throw new CommonException("表" + tableMeta.getName() + "的主键字段" + dbProperties.getPrimaryField() + "不存在");
+		}
+		//检查表的主键
+		if (tableStruct.getPrimaryKey() != null) {
+			if (!tableStruct.getPrimaryKey().getFields().equalsIgnoreCase(dbProperties.getPrimaryField())) {
+				String sql = ctx.getDialect().getAlterTableString(tableMeta.getName())
+						+ ctx.getDialect().getDropPrimaryKeyString(tableStruct.getPrimaryKey().getName());
+				ctx.execute(sql);
+				createTablePrimaryKey(dbProperties, ctx, tableMeta);
+			}
+		}
+		else {
+			createTablePrimaryKey(dbProperties, ctx, tableMeta);
+		}
+		//检查表的索引
+		IndexMeta[] indexMetas = tableMeta.getIndexes();
+		for (IndexMeta indexMeta : indexMetas) {
+			String metaIndexFields = "";
+			IndexFieldMeta[] fields = indexMeta.getFields();
+			for (int t = 0; t < fields.length; t++) {
+				if (t > 0) {
+					metaIndexFields += ",";
+				}
+				metaIndexFields += tableMeta.getField(fields[t].getField()).getName();
+				metaIndexFields += ":" + fields[t].getOrder();
+			}
+			String idxName = DataConstants.INDEX_KEY_PREFIX + io.github.summercattle.commons.utils.auxiliary.StringUtils.getHashName("Table'"
+					+ tableMeta.getName() + "'Unique'" + BooleanUtils.toStringTrueFalse(indexMeta.isUnique()) + "'Columns'" + metaIndexFields + "'");
+			TableIndexStruct indexStruct = tableStruct.getIndex(idxName);
+			if (indexStruct != null) {
+				if (!metaIndexFields.equalsIgnoreCase(indexStruct.getFields()) || indexMeta.isUnique() != indexStruct.isUnique()) {
+					String sql = ctx.getDialect().getDropIndexCommand(tableMeta.getName(), idxName);
+					ctx.execute(sql);
+					createTableIndex(ctx, tableMeta, indexMeta);
+				}
+			}
+			else {
+				TableIndexStruct[] indexes = tableStruct.getIndexes();
+				for (TableIndexStruct index : indexes) {
+					if (index.isUnique() == indexMeta.isUnique() && metaIndexFields.equalsIgnoreCase(index.getFields())) {
+						String sql = ctx.getDialect().getDropIndexCommand(tableMeta.getName(), index.getName());
+						ctx.execute(sql);
+						break;
+					}
+				}
+				createTableIndex(ctx, tableMeta, indexMeta);
 			}
 		}
 	}
 
-	private void processTableColumn(SimpleDalContext context, String tableName, TableFieldStruct fieldStructure, DataType dataType, int length,
-			int precision, boolean allowNull, String defaultValue, String comment) throws CommonException {
-		if (null == fieldStructure.getType()) {
-			throw new CommonException("表" + tableName + "的字段" + fieldStructure.getName() + "的数据类型" + fieldStructure.getTypeName() + "不属于系统支持的数据类型");
+	private void checkTableColumn(SimpleDalContext ctx, String tableName, TableFieldStruct fieldStruct, DataType dataType, int length, int scale)
+			throws CommonException {
+		String typeName = ctx.getDialect().getTypeSimpleName(dataType, length, scale);
+		if (!typeName.equalsIgnoreCase(fieldStruct.getTypeName())) {
+			boolean ignore = false;
+			if (dataType == DataType.Boolean && JdbcUtils.isNumeric(fieldStruct.getJdbcType()) && fieldStruct.getLength() == 1
+					&& fieldStruct.getScale() == 0) {
+				ignore = true;
+			}
+			if (!ignore) {
+				throw new CommonException("表'" + tableName + "'的字段'" + fieldStruct.getName() + "'的数据类型'" + fieldStruct.getTypeName() + "'与数据定义中的数据类型'"
+						+ dataType.toString() + "'不一致");
+			}
+		}
+	}
+
+	private void addTableColumn(SimpleDalContext ctx, String tableName, String fieldName, DataType dataType, int length, int scale, boolean allowNull,
+			String defaultValue, String comment) throws CommonException {
+		StringBuffer buf = new StringBuffer(ctx.getDialect().getAlterTableString(tableName) + " " + ctx.getDialect().getAddColumnString() + " ");
+		buf.append(ctx.getDialect().quote(fieldName) + " ").append(ctx.getDialect().getTypeName(dataType, length, scale));
+		if (StringUtils.isNotBlank(defaultValue)) {
+			buf.append(" default ");
+			if (dataType == DataType.String || dataType == DataType.NString || dataType == DataType.LongString || dataType == DataType.Clob
+					|| dataType == DataType.NClob) {
+				buf.append("'" + defaultValue + "'");
+			}
+			else {
+				buf.append(defaultValue);
+			}
+		}
+		if (allowNull) {
+			buf.append(ctx.getDialect().getNullColumnString());
+		}
+		else {
+			buf.append(" not null");
+		}
+		if (StringUtils.isNotBlank(comment)) {
+			buf.append(ctx.getDialect().getColumnComment(comment));
+		}
+		buf.append(ctx.getDialect().getAddColumnSuffixString());
+		ctx.execute(buf.toString());
+		if (ctx.getDialect().supportsCommentOn()) {
+			commentColumn(ctx, tableName, fieldName, comment);
+		}
+	}
+
+	private void processTableColumn(SimpleDalContext ctx, String tableName, TableFieldStruct fieldStruct, DataType dataType, int length, int scale,
+			boolean allowNull, String defaultValue, String comment) throws CommonException {
+		if (fieldStruct.getJdbcType() == Types.OTHER) {
+			throw new CommonException("表" + tableName + "的字段" + fieldStruct.getName() + "的数据类型" + fieldStruct.getTypeName() + "不属于系统支持的数据类型");
 		}
 		boolean dataTypeChange = false;
-		if (fieldStructure.getType() != dataType) {
+		String typeName = ctx.getDialect().getTypeSimpleName(dataType, length, scale);
+		if (!typeName.equalsIgnoreCase(fieldStruct.getTypeName())) {
 			dataTypeChange = true;
 			boolean ignore = false;
-			if ((fieldStructure.getType() == DataType.String && dataType == DataType.NString)
-					|| (fieldStructure.getType() == DataType.NString && dataType == DataType.String)) {
-				ignore = true;
-			}
-			if (context.getDialect().getType() == DatabaseType.MySQL && ((fieldStructure.getType() == DataType.Clob && dataType == DataType.NClob)
-					|| (fieldStructure.getType() == DataType.NClob && dataType == DataType.Clob))) {
-				ignore = true;
-			}
-			if (context.getDialect().getType() == DatabaseType.MySQL && ((fieldStructure.getType() == DataType.NString && dataType == DataType.NClob)
-					|| (fieldStructure.getType() == DataType.String && dataType == DataType.Clob))) {
-				ignore = true;
-			}
-			if (dataType == DataType.Boolean && fieldStructure.getType() == DataType.Number && fieldStructure.getSize() == 1
-					&& fieldStructure.getDecimalDigits() == 0) {
+			if (dataType == DataType.Boolean && JdbcUtils.isNumeric(fieldStruct.getJdbcType()) && fieldStruct.getLength() == 1
+					&& fieldStruct.getScale() == 0) {
 				ignore = true;
 				dataTypeChange = false;
 			}
 			if (!ignore) {
-				throw new CommonException("表" + tableName + "的字段" + fieldStructure.getName() + "的数据类型" + fieldStructure.getType().toString()
-						+ "与数据定义中的数据类型" + dataType.toString() + "不一致");
+				throw new CommonException("表" + tableName + "的字段" + fieldStruct.getName() + "的数据类型" + fieldStruct.getTypeName() + "与数据定义中的数据类型"
+						+ dataType.toString() + "不一致");
 			}
 		}
 		else {
 			if (dataType == DataType.Number) {
-				if (length < fieldStructure.getSize()) {
-					throw new CommonException("表" + tableName + "的字段" + fieldStructure.getName() + "长度不能改小");
+				if (length < fieldStruct.getLength()) {
+					throw new CommonException("表" + tableName + "的字段" + fieldStruct.getName() + "长度不能改小");
 				}
-				if (length > fieldStructure.getSize()) {
-					if (context.getDialect().getType() == DatabaseType.DB2) {
-						throw new CommonException(
-								"表" + tableName + "的字段" + fieldStructure.getName() + "的数据类型" + fieldStructure.getType().toString() + "不能调整");
-					}
+				if (length > fieldStruct.getLength()) {
 					dataTypeChange = true;
 				}
-				if (precision != fieldStructure.getDecimalDigits()) {
-					if (context.getDialect().getType() == DatabaseType.DB2) {
-						throw new CommonException(
-								"表" + tableName + "的字段" + fieldStructure.getName() + "的数据类型" + fieldStructure.getType().toString() + "不能调整");
-					}
+				if (scale != fieldStruct.getScale()) {
 					dataTypeChange = true;
 				}
 			}
 			else if (dataType == DataType.String || dataType == DataType.NString) {
-				if (length < fieldStructure.getSize()) {
-					throw new CommonException("表" + tableName + "的字段" + fieldStructure.getName() + "长度不能改小");
+				if (length < fieldStruct.getLength()) {
+					throw new CommonException("表" + tableName + "的字段" + fieldStruct.getName() + "长度不能改小");
 				}
-				if (length > fieldStructure.getSize()) {
+				if (length > fieldStruct.getLength()) {
 					dataTypeChange = true;
 				}
 			}
 		}
 		if (dataTypeChange) {
-			String sql = "alter table " + context.getDialect().getSQLKeyword(tableName) + " " + context.getDialect().getModifyColumnString() + " ";
-			sql += context.getDialect().getSQLKeyword(fieldStructure.getName()) + " ";
-			if (context.getDialect().getType() == DatabaseType.DB2 || context.getDialect().getType() == DatabaseType.H2) {
-				sql += "set data type ";
-			}
-			sql += context.getDialect().getTypeName(dataType, length, precision);
-			if (context.getDialect().getType() == DatabaseType.MySQL) {
-				if (!allowNull) {
-					sql += " not null";
-				}
-				else {
-					sql += " null";
-				}
-				if (StringUtils.isNotBlank(defaultValue)) {
-					sql += " default ";
-					if (fieldStructure.getType() == DataType.String || fieldStructure.getType() == DataType.NString
-							|| fieldStructure.getType() == DataType.Clob || fieldStructure.getType() == DataType.NClob) {
-						sql += "'";
-					}
-					sql += defaultValue;
-					if (fieldStructure.getType() == DataType.String || fieldStructure.getType() == DataType.NString
-							|| fieldStructure.getType() == DataType.Clob || fieldStructure.getType() == DataType.NClob) {
-						sql += "'";
-					}
-				}
-				sql += " comment '" + (StringUtils.isNotBlank(comment) ? comment : "") + "'";
-			}
-			context.execute(sql);
+			String sql = ctx.getDialect().getModifyColumnDataTypeCommand(tableName, fieldStruct.getName(), dataType, length, scale, allowNull,
+					defaultValue, comment);
+			ctx.execute(sql);
 		}
-		if (fieldStructure.isNullable() != allowNull) {
-			String sql = "alter table " + context.getDialect().getSQLKeyword(tableName) + " " + context.getDialect().getModifyColumnString() + " ";
-			sql += context.getDialect().getSQLKeyword(fieldStructure.getName()) + " ";
-			if (context.getDialect().getType() == DatabaseType.DB2 || context.getDialect().getType() == DatabaseType.H2) {
-				if (fieldStructure.isNullable() && !allowNull) {
-					sql += "set not null";
-				}
-				else if (!fieldStructure.isNullable() && allowNull) {
-					sql += "drop not null";
-				}
-			}
-			else {
-				sql += context.getDialect().getTypeName(dataType, length, precision);
-				if (!allowNull) {
-					sql += " not null";
-				}
-				else {
-					sql += " null";
-				}
-				if (context.getDialect().getType() == DatabaseType.MySQL) {
-					if (StringUtils.isNotBlank(defaultValue)) {
-						sql += " default ";
-						if (fieldStructure.getType() == DataType.String || fieldStructure.getType() == DataType.NString
-								|| fieldStructure.getType() == DataType.Clob || fieldStructure.getType() == DataType.NClob) {
-							sql += "'";
-						}
-						sql += defaultValue;
-						if (fieldStructure.getType() == DataType.String || fieldStructure.getType() == DataType.NString
-								|| fieldStructure.getType() == DataType.Clob || fieldStructure.getType() == DataType.NClob) {
-							sql += "'";
-						}
-					}
-					sql += " comment '" + (StringUtils.isNotBlank(comment) ? comment : "") + "'";
-				}
-			}
-			context.execute(sql);
+		if (fieldStruct.isNullable() != allowNull) {
+			String sql = ctx.getDialect().getModifyColumnNullCommand(tableName, fieldStruct.getName(), dataType, length, scale, allowNull,
+					defaultValue, comment);
+			ctx.execute(sql);
 		}
 		boolean defaultChange = false;
-		if (!io.github.summercattle.commons.utils.auxiliary.StringUtils.equals(fieldStructure.getDefaultValue(), defaultValue)) {
+		if (!io.github.summercattle.commons.utils.auxiliary.StringUtils.equals(fieldStruct.getDefaultValue(), defaultValue)) {
 			if (StringUtils.isNotBlank(defaultValue)) {
 				if (dataType == DataType.Number) {
-					if (StringUtils.isNotBlank(fieldStructure.getDefaultValue())) {
-						BigDecimal structureDefault = NumberUtils.toBigDecimal(fieldStructure.getDefaultValue());
+					if (StringUtils.isNotBlank(fieldStruct.getDefaultValue())) {
+						BigDecimal StructDefault = NumberUtils.toBigDecimal(fieldStruct.getDefaultValue());
 						BigDecimal metaDefault = NumberUtils.toBigDecimal(defaultValue);
-						if (structureDefault.compareTo(metaDefault) != 0) {
+						if (StructDefault.compareTo(metaDefault) != 0) {
 							defaultChange = true;
 						}
 					}
@@ -528,106 +471,58 @@ public class DbStructImpl implements DbStruct {
 			}
 		}
 		if (defaultChange) {
-			String sql;
-			if (StringUtils.isNotBlank(defaultValue)) {
-				if (context.getDialect().getType() == DatabaseType.MySQL) {
-					sql = "alter table " + context.getDialect().getSQLKeyword(tableName) + " alter column "
-							+ context.getDialect().getSQLKeyword(fieldStructure.getName()) + " set default ";
-					if (fieldStructure.getType() == DataType.String || fieldStructure.getType() == DataType.NString
-							|| fieldStructure.getType() == DataType.Clob || fieldStructure.getType() == DataType.NClob) {
-						sql += "'";
-					}
-					sql += defaultValue;
-					if (fieldStructure.getType() == DataType.String || fieldStructure.getType() == DataType.NString
-							|| fieldStructure.getType() == DataType.Clob || fieldStructure.getType() == DataType.NClob) {
-						sql += "'";
-					}
-				}
-				else {
-					sql = "alter table " + context.getDialect().getSQLKeyword(tableName) + " " + context.getDialect().getModifyColumnString() + " "
-							+ context.getDialect().getSQLKeyword(fieldStructure.getName());
-					if (context.getDialect().getType() == DatabaseType.DB2 || context.getDialect().getType() == DatabaseType.H2) {
-						sql += " set";
-					}
-					sql += " default ";
-					if (fieldStructure.getType() == DataType.String || fieldStructure.getType() == DataType.NString
-							|| fieldStructure.getType() == DataType.Clob || fieldStructure.getType() == DataType.NClob) {
-						sql += "'";
-					}
-					sql += defaultValue;
-					if (fieldStructure.getType() == DataType.String || fieldStructure.getType() == DataType.NString
-							|| fieldStructure.getType() == DataType.Clob || fieldStructure.getType() == DataType.NClob) {
-						sql += "'";
-					}
-				}
-			}
-			else {
-				if (context.getDialect().getType() == DatabaseType.MySQL) {
-					sql = "alter table " + context.getDialect().getSQLKeyword(tableName) + " alter column "
-							+ context.getDialect().getSQLKeyword(fieldStructure.getName()) + " drop default";
-				}
-				else {
-					sql = "alter table " + context.getDialect().getSQLKeyword(tableName) + " " + context.getDialect().getModifyColumnString() + " "
-							+ context.getDialect().getSQLKeyword(fieldStructure.getName())
-							+ (context.getDialect().getType() == DatabaseType.DB2 || context.getDialect().getType() == DatabaseType.H2
-									? " drop default"
-									: " default null");
-				}
-			}
-			context.execute(sql);
+			String sql = ctx.getDialect().getModifyColumnDefaultCommand(tableName, fieldStruct.getName(), dataType, defaultValue);
+			ctx.execute(sql);
 		}
-		if (!io.github.summercattle.commons.utils.auxiliary.StringUtils.equals(fieldStructure.getComment(), comment)) {
-			String sql;
-			if (context.getDialect().getType() == DatabaseType.MySQL) {
-				sql = "alter table " + context.getDialect().getSQLKeyword(tableName) + " " + context.getDialect().getModifyColumnString() + " "
-						+ context.getDialect().getSQLKeyword(fieldStructure.getName()) + " ";
-				sql += context.getDialect().getTypeName(dataType, length, precision);
-				if (!allowNull) {
-					sql += " not null";
+		if (!io.github.summercattle.commons.utils.auxiliary.StringUtils.equals(fieldStruct.getComment(), comment)) {
+			String columnComment = ctx.getDialect().getColumnComment(comment);
+			if (StringUtils.isNotBlank(columnComment)) {
+				StringBuffer buf = new StringBuffer(ctx.getDialect().getAlterTableString(tableName));
+				buf.append(" " + ctx.getDialect().getModifyColumnString());
+				buf.append(" " + ctx.getDialect().quote(fieldStruct.getName()) + " " + ctx.getDialect().getTypeName(dataType, length, scale));
+				if (allowNull) {
+					buf.append(ctx.getDialect().getNullColumnString());
 				}
 				else {
-					sql += " null";
+					buf.append(" not null");
 				}
 				if (StringUtils.isNotBlank(defaultValue)) {
-					sql += " default ";
-					if (fieldStructure.getType() == DataType.String || fieldStructure.getType() == DataType.NString
-							|| fieldStructure.getType() == DataType.Clob || fieldStructure.getType() == DataType.NClob) {
-						sql += "'";
+					buf.append(" default ");
+					if (JdbcUtils.isString(fieldStruct.getJdbcType())) {
+						buf.append("'");
 					}
-					sql += defaultValue;
-					if (fieldStructure.getType() == DataType.String || fieldStructure.getType() == DataType.NString
-							|| fieldStructure.getType() == DataType.Clob || fieldStructure.getType() == DataType.NClob) {
-						sql += "'";
+					buf.append(defaultValue);
+					if (JdbcUtils.isString(fieldStruct.getJdbcType())) {
+						buf.append("'");
 					}
 				}
-				sql += " comment '" + (StringUtils.isNotBlank(comment) ? comment : "") + "'";
+				buf.append(columnComment);
+				ctx.execute(buf.toString());
 			}
-			else {
-				sql = "comment on column " + context.getDialect().getSQLKeyword(tableName) + "."
-						+ context.getDialect().getSQLKeyword(fieldStructure.getName()) + " is '" + (StringUtils.isNotBlank(comment) ? comment : "")
-						+ "'";
+			if (ctx.getDialect().supportsCommentOn()) {
+				commentColumn(ctx, tableName, fieldStruct.getName(), comment);
 			}
-			context.execute(sql);
 		}
 	}
 
-	private void createTablesAndIndexes(DbProperties dbProperties, SimpleDalContext context, TableMeta tableMeta) throws CommonException {
-		String createSQL = "create table " + context.getDialect().getSQLKeyword(tableMeta.getName()) + " (";
-		createSQL += context.getDialect().getSQLKeyword(dbProperties.getPrimaryField()) + " " + (tableMeta.isPrimaryKeyUseNumber()
-				? context.getDialect().getTypeName(DataType.Number, 10, 0)
-				: context.getDialect().getTypeName(context.getDialect().supportsUnicodeStringType() ? DataType.NString : DataType.String, 50, 0))
-				+ " not null,";
+	private void create(DbProperties dbProperties, SimpleDalContext ctx, TableMeta tableMeta) throws CommonException {
+		StringBuilder buf = new StringBuilder(ctx.getDialect().getCreateTableString() + " " + tableMeta.getName() + " (")
+				.append(ctx.getDialect().quote(dbProperties.getPrimaryField()) + " "
+						+ (tableMeta.isPrimaryKeyUseNumber() ? ctx.getDialect().getTypeName(DataType.Number, 10, 0)
+								: ctx.getDialect().getTypeName(DataType.NString, 50, 0))
+						+ " not null")
+				.append(ctx.getDialect().getColumnComment(PRIMARY_FIELD_COMMENT) + ",");
 		FieldMeta[] fieldMetas = tableMeta.getFields();
 		for (FieldMeta fieldMeta : fieldMetas) {
-			createSQL += context.getDialect().getSQLKeyword(fieldMeta.getName()) + " ";
+			buf.append(ctx.getDialect().quote(fieldMeta.getName()) + " ");
 			DataType dataType;
 			int length;
-			int precision = 0;
+			int scale = 0;
 			String defaultValue = "";
 			if (FieldMetaMode.Fixed == fieldMeta.getMode()) {
 				dataType = ((FixedFieldMeta) fieldMeta).getType();
 				length = ((FixedFieldMeta) fieldMeta).getLength();
-				precision = ((FixedFieldMeta) fieldMeta).getPrecision();
+				scale = ((FixedFieldMeta) fieldMeta).getScale();
 				defaultValue = ((FixedFieldMeta) fieldMeta).getDefault();
 			}
 			else if (FieldMetaMode.Reference == fieldMeta.getMode()) {
@@ -637,7 +532,7 @@ public class DbStructImpl implements DbStruct {
 					length = 10;
 				}
 				else {
-					dataType = context.getDialect().supportsUnicodeStringType() ? DataType.NString : DataType.String;
+					dataType = DataType.NString;
 					length = 50;
 				}
 			}
@@ -645,173 +540,186 @@ public class DbStructImpl implements DbStruct {
 				throw new CommonException(
 						"表'" + tableMeta.getName() + "'的字段'" + fieldMeta.getName() + "'模式'" + fieldMeta.getMode().toString() + "'不支持");
 			}
-			if ((dataType == DataType.NString || dataType == DataType.NClob) && !context.getDialect().supportsUnicodeStringType()) {
-				dataType = dataType == DataType.NString ? DataType.String : DataType.Clob;
-			}
-			createSQL += context.getDialect().getTypeName(dataType, length, precision);
+			buf.append(ctx.getDialect().getTypeName(dataType, length, scale));
 			if (StringUtils.isNotBlank(defaultValue)) {
-				createSQL += " default ";
-				if (dataType == DataType.String || dataType == DataType.NString || dataType == DataType.Clob || dataType == DataType.NClob) {
-					createSQL += "'" + defaultValue + "'";
+				buf.append(" default ");
+				if (dataType == DataType.String || dataType == DataType.NString || dataType == DataType.LongString || dataType == DataType.Clob
+						|| dataType == DataType.NClob) {
+					buf.append("'" + defaultValue + "'");
 				}
 				else {
-					createSQL += defaultValue;
+					buf.append(defaultValue);
 				}
 			}
-			if (!fieldMeta.allowNull()) {
-				createSQL += " not null";
+			if (fieldMeta.allowNull()) {
+				buf.append(ctx.getDialect().getNullColumnString());
 			}
-			if (context.getDialect().getType() == DatabaseType.MySQL && StringUtils.isNotBlank(fieldMeta.getComment())) {
-				createSQL += " comment '" + fieldMeta.getComment() + "'";
+			else {
+				buf.append(" not null");
 			}
-			createSQL += ",";
+			if (StringUtils.isNotBlank(fieldMeta.getComment())) {
+				buf.append(ctx.getDialect().getColumnComment(fieldMeta.getComment()));
+			}
+			buf.append(",");
 		}
-		createSQL += context.getDialect().getSQLKeyword(dbProperties.getCreateTimeField()) + " "
-				+ context.getDialect().getTypeName(DataType.Timestamp, 0, 0) + ",";
-		createSQL += context.getDialect().getSQLKeyword(dbProperties.getUpdateTimeField()) + " "
-				+ context.getDialect().getTypeName(DataType.Timestamp, 0, 0) + ",";
-		createSQL += context.getDialect().getSQLKeyword(dbProperties.getVersionField()) + " "
-				+ context.getDialect().getTypeName(DataType.Number, 10, 0) + " default 0,";
-		createSQL += context.getDialect().getSQLKeyword(dbProperties.getDeletedField()) + " "
-				+ context.getDialect().getTypeName(DataType.Boolean, 0, 0) + " default 0";
-		createSQL += ")";
-		if (context.getDialect().getType() == DatabaseType.MySQL && StringUtils.isNotBlank(tableMeta.getComment())) {
-			createSQL += " comment='" + tableMeta.getComment() + "'";
+		buf.append(ctx.getDialect().quote(dbProperties.getCreateTimeField()) + " " + ctx.getDialect().getTypeName(DataType.Timestamp))
+				.append(ctx.getDialect().getNullColumnString()).append(ctx.getDialect().getColumnComment(CREATE_TIME_FIELD_COMMENT) + ",");
+		buf.append(ctx.getDialect().quote(dbProperties.getUpdateTimeField()) + " " + ctx.getDialect().getTypeName(DataType.Timestamp))
+				.append(ctx.getDialect().getNullColumnString()).append(ctx.getDialect().getColumnComment(UPDATE_TIME_FIELD_COMMENT) + ",");
+		buf.append(ctx.getDialect().quote(dbProperties.getVersionField()) + " " + ctx.getDialect().getTypeName(DataType.Number, 10, 0)
+				+ " default 0 not null" + ctx.getDialect().getColumnComment(VERSION_FIELD_COMMENT) + ",");
+		buf.append(ctx.getDialect().quote(dbProperties.getDeletedField()) + " " + ctx.getDialect().getTypeName(DataType.Boolean)
+				+ " default 0 not null" + ctx.getDialect().getColumnComment(DELETED_FIELD_COMMENT) + ")");
+		if (StringUtils.isNotBlank(tableMeta.getComment())) {
+			buf.append(ctx.getDialect().getTableComment(tableMeta.getComment()));
 		}
-		if (StringUtils.isNotBlank(context.getDialect().getTableTypeString())) {
-			createSQL += " " + context.getDialect().getTableTypeString();
-		}
-		context.execute(createSQL);
-		createTablePrimaryKey(dbProperties, context, tableMeta);
-		IndexMeta[] indexMetas = tableMeta.getIndexes();
-		for (IndexMeta indexMeta : indexMetas) {
-			createTableIndex(context, tableMeta, indexMeta);
-		}
-		if (context.getDialect().getType() == DatabaseType.H2 || context.getDialect().getType() == DatabaseType.Oracle
-				|| context.getDialect().getType() == DatabaseType.DB2) {
-			String commentSQL;
+		buf.append(ctx.getDialect().getTableTypeString());
+		ctx.execute(buf.toString());
+		createTablePrimaryKey(dbProperties, ctx, tableMeta);
+		if (ctx.getDialect().supportsCommentOn()) {
 			if (StringUtils.isNotBlank(tableMeta.getComment())) {
-				commentSQL = "comment on table " + context.getDialect().getSQLKeyword(tableMeta.getName()) + " is '" + tableMeta.getComment() + "'";
-				context.execute(commentSQL);
+				commentTable(ctx, tableMeta.getName(), tableMeta.getComment());
 			}
+			commentColumn(ctx, tableMeta.getName(), dbProperties.getPrimaryField(), PRIMARY_FIELD_COMMENT);
 			for (FieldMeta fieldMeta : fieldMetas) {
 				if (StringUtils.isNotBlank(fieldMeta.getComment())) {
-					commentSQL = "comment on column " + context.getDialect().getSQLKeyword(tableMeta.getName()) + "."
-							+ context.getDialect().getSQLKeyword(fieldMeta.getName()) + " is '" + fieldMeta.getComment() + "'";
-					context.execute(commentSQL);
+					commentColumn(ctx, tableMeta.getName(), fieldMeta.getName(), fieldMeta.getComment());
 				}
 			}
+			commentColumn(ctx, tableMeta.getName(), dbProperties.getCreateTimeField(), CREATE_TIME_FIELD_COMMENT);
+			commentColumn(ctx, tableMeta.getName(), dbProperties.getUpdateTimeField(), UPDATE_TIME_FIELD_COMMENT);
+			commentColumn(ctx, tableMeta.getName(), dbProperties.getVersionField(), VERSION_FIELD_COMMENT);
+			commentColumn(ctx, tableMeta.getName(), dbProperties.getDeletedField(), DELETED_FIELD_COMMENT);
+		}
+		IndexMeta[] indexMetas = tableMeta.getIndexes();
+		for (IndexMeta indexMeta : indexMetas) {
+			createTableIndex(ctx, tableMeta, indexMeta);
 		}
 	}
 
-	private void addTableColumn(SimpleDalContext context, String tableName, String fieldName, String typeName, String fieldDefault)
-			throws CommonException {
-		String sql = "alter table " + context.getDialect().getSQLKeyword(tableName) + " " + context.getDialect().getAddColumnString() + " "
-				+ context.getDialect().getSQLKeyword(fieldName) + " " + typeName;
-		if (StringUtils.isNotBlank(fieldDefault)) {
-			sql += " default " + fieldDefault;
+	private void createTablePrimaryKey(DbProperties dbProperties, SimpleDalContext ctx, TableMeta tableMeta) throws CommonException {
+		String pkName = DataConstants.PRIMARY_KEY_PREFIX + io.github.summercattle.commons.utils.auxiliary.StringUtils
+				.getHashName("Table'" + tableMeta.getName() + "'PrimaryKey'" + dbProperties.getPrimaryField() + "'");
+		String sql = ctx.getDialect().getAlterTableString(tableMeta.getName()) + ctx.getDialect().getAddPrimaryKeyString(pkName) + "("
+				+ ctx.getDialect().quote(dbProperties.getPrimaryField()) + ")";
+		ctx.execute(sql);
+	}
+
+	private void createTableIndex(SimpleDalContext ctx, TableMeta tableMeta, IndexMeta indexMeta) throws CommonException {
+		String metaIndexFields = "";
+		IndexFieldMeta[] fields = indexMeta.getFields();
+		for (int t = 0; t < fields.length; t++) {
+			if (t > 0) {
+				metaIndexFields += ",";
+			}
+			metaIndexFields += tableMeta.getField(fields[t].getField()).getName();
+			metaIndexFields += ":" + fields[t].getOrder();
 		}
-		context.execute(sql);
-	}
-
-	private void createTablePrimaryKey(DbProperties dbProperties, SimpleDalContext context, TableMeta tableMeta) throws CommonException {
-		String createPrimaryKeySQL = "alter table " + context.getDialect().getSQLKeyword(tableMeta.getName()) + " "
-				+ context.getDialect().getAddPrimaryKeyConstraintString(tableMeta.getPrimaryKeyName()) + " ("
-				+ context.getDialect().getSQLKeyword(dbProperties.getPrimaryField()) + ")";
-		context.execute(createPrimaryKeySQL);
-	}
-
-	private void createTableIndex(SimpleDalContext context, TableMeta tableMeta, IndexMeta indexMeta) throws CommonException {
-		String createIndexSQL = "create " + (indexMeta.isUnique() ? "unique " : "") + "index " + indexMeta.getName() + " on "
-				+ context.getDialect().getSQLKeyword(tableMeta.getName()) + " (";
-		String[] fields = indexMeta.getFields().split(",");
+		String idxName = DataConstants.INDEX_KEY_PREFIX + io.github.summercattle.commons.utils.auxiliary.StringUtils.getHashName("Table'"
+				+ tableMeta.getName() + "'Unique'" + BooleanUtils.toStringTrueFalse(indexMeta.isUnique()) + "'Columns'" + metaIndexFields + "'");
+		StringBuffer buf = new StringBuffer(
+				"create " + (indexMeta.isUnique() ? "unique " : "") + "index " + idxName + " on " + tableMeta.getName() + " (");
 		for (int i = 0; i < fields.length; i++) {
 			if (i > 0) {
-				createIndexSQL += ",";
+				buf.append(",");
 			}
-			String[] indexFields = fields[i].split(":");
-			FieldMeta field = tableMeta.getField(indexFields[0]);
+			IndexFieldMeta indexFieldMeta = fields[i];
+			FieldMeta field = tableMeta.getField(indexFieldMeta.getField());
 			DataType fieldType;
 			if (FieldMetaMode.Fixed == field.getMode()) {
 				fieldType = ((FixedFieldMeta) field).getType();
 			}
 			else if (FieldMetaMode.Reference == field.getMode()) {
 				TableMeta referenceTable = dbMetaModel.getTable(((ReferenceFieldMeta) field).getReferenceTableName());
-				if (referenceTable.isPrimaryKeyUseNumber()) {
-					fieldType = DataType.Number;
-				}
-				else {
-					fieldType = context.getDialect().supportsUnicodeStringType() ? DataType.NString : DataType.String;
-				}
+				fieldType = referenceTable.isPrimaryKeyUseNumber() ? DataType.Number : DataType.NString;
 			}
 			else {
 				throw new CommonException("表'" + tableMeta.getName() + "'的字段'" + field.getName() + "'模式'" + field.getMode().toString() + "'不支持");
 			}
-			if (context.getDialect().getType() == DatabaseType.DB2
-					&& (fieldType == DataType.Clob || fieldType == DataType.NClob || fieldType == DataType.Blob)) {
+			if (fieldType == DataType.Clob || fieldType == DataType.NClob || fieldType == DataType.Blob) {
 				throw new CommonException("表'" + tableMeta.getName() + "'的字段'" + field.getName() + "'的数据类型'" + fieldType.toString() + "',不能进行索引");
 			}
-			createIndexSQL += context.getDialect().getSQLKeyword(field.getName());
-			if (indexFields.length == 2) {
-				createIndexSQL += " " + indexFields[1];
-			}
+			buf.append(ctx.getDialect().quote(field.getName()));
+			buf.append(" " + indexFieldMeta.getOrder());
 		}
-		createIndexSQL += ")";
-		context.execute(createIndexSQL);
+		buf.append(")");
+		ctx.execute(buf.toString());
 	}
 
-	private void createCustomSequenceTable(SimpleDalContext context) throws CommonException {
-		String createSQL = "create table " + DataConstants.SEQUENCE_TABLE_NAME + " (";
-		createSQL += DataConstants.SEQUENCE_FIELD_NAME + " "
-				+ context.getDialect().getTypeName(context.getDialect().supportsUnicodeStringType() ? DataType.NString : DataType.String, 50, 0)
+	private void createCustomSequenceTable(SimpleDalContext ctx) throws CommonException {
+		String createSQL = ctx.getDialect().getCreateTableString() + " " + DataConstants.SEQUENCE_TABLE_NAME + " (";
+		createSQL += ctx.getDialect().quote(DataConstants.SEQUENCE_FIELD_NAME) + " " + ctx.getDialect().getTypeName(DataType.NString, 50, 0)
 				+ " not null,";
-		createSQL += DataConstants.SEQUENCE_FIELD_VALUE + " ";
-		createSQL += context.getDialect().getTypeName(DataType.Number, 20, 0);
+		createSQL += ctx.getDialect().quote(DataConstants.SEQUENCE_FIELD_VALUE) + " ";
+		createSQL += ctx.getDialect().getTypeName(DataType.Number, 20, 0);
 		createSQL += " default 0";
 		createSQL += ")";
-		if (StringUtils.isNotBlank(context.getDialect().getTableTypeString())) {
-			createSQL += " " + context.getDialect().getTableTypeString();
+		if (StringUtils.isNotBlank(ctx.getDialect().getTableTypeString())) {
+			createSQL += " " + ctx.getDialect().getTableTypeString();
 		}
-		context.execute(createSQL);
-		String createPrimaryKeySQL = "alter table " + DataConstants.SEQUENCE_TABLE_NAME + " "
-				+ context.getDialect().getAddPrimaryKeyConstraintString("PK_" + DataConstants.SEQUENCE_TABLE_NAME) + " ("
-				+ DataConstants.SEQUENCE_FIELD_NAME + ")";
-		context.execute(createPrimaryKeySQL);
+		ctx.execute(createSQL);
+		String createPrimaryKeySQL = ctx.getDialect().getAlterTableString(DataConstants.SEQUENCE_TABLE_NAME)
+				+ ctx.getDialect().getAddPrimaryKeyString(DataConstants.PRIMARY_KEY_PREFIX + DataConstants.SEQUENCE_TABLE_NAME) + "("
+				+ ctx.getDialect().quote(DataConstants.SEQUENCE_FIELD_NAME) + ")";
+		ctx.execute(createPrimaryKeySQL);
+	}
+
+	private void commentTable(SimpleDalContext ctx, String tableName, String comment) throws CommonException {
+		String sql = "comment on table " + tableName + " is '" + comment + "'";
+		ctx.execute(sql);
+	}
+
+	private void commentColumn(SimpleDalContext ctx, String tableName, String columnName, String comment) throws CommonException {
+		String sql = "comment on column " + tableName + "." + ctx.getDialect().quote(columnName) + " is '" + comment + "'";
+		ctx.execute(sql);
 	}
 
 	@Override
-	public boolean existTable(String tableName) throws CommonException {
-		if (StringUtils.isBlank(tableName)) {
+	public boolean existTable(String name) throws CommonException {
+		if (StringUtils.isBlank(name)) {
 			throw new CommonException("表名为空");
 		}
-		return dbTransaction.doSimpleDal(context -> context.getDialect().existTable(context.getConnection(), tableName));
+		return dbTransaction.doSimpleDal(ctx -> {
+			if (!ctx.getDialect().getStructHandler().supportsTable()) {
+				throw new CommonException("不支持数据表结构的查询");
+			}
+			return ctx.getDialect().getStructHandler().existTable(ctx.getConnection(), name);
+		});
 	}
 
 	@Override
-	public boolean existView(String viewName) throws CommonException {
-		if (StringUtils.isBlank(viewName)) {
+	public boolean existView(String name) throws CommonException {
+		if (StringUtils.isBlank(name)) {
 			throw new CommonException("视图名为空");
 		}
-		return dbTransaction.doSimpleDal(context -> context.getDialect().existView(context.getConnection(), viewName));
+		return dbTransaction.doSimpleDal(ctx -> {
+			if (!ctx.getDialect().getStructHandler().supportsView()) {
+				throw new CommonException("不支持数据视图结构的查询");
+			}
+			return ctx.getDialect().getStructHandler().existView(ctx.getConnection(), name);
+		});
 	}
 
 	@Override
-	public ViewObjectStruct getViewStruct(String viewName) throws CommonException {
-		if (StringUtils.isBlank(viewName)) {
+	public ViewObjectStruct getViewStruct(String name) throws CommonException {
+		if (StringUtils.isBlank(name)) {
 			throw new CommonException("视图名为空");
 		}
 		Cache cache = cacheManager.getCache(DataConstants.CAFFEINE_VIEW_STRUCT);
-		ViewObjectStruct viewObjectStruct = (ViewObjectStruct) cache.get(viewName.toLowerCase());
+		ViewObjectStruct viewObjectStruct = (ViewObjectStruct) cache.get(name.toLowerCase());
 		if (null == viewObjectStruct) {
-			if (!existView(viewName)) {
-				throw new CommonException("视图'" + viewName + "'不存在");
+			if (!existView(name)) {
+				throw new CommonException("视图'" + name + "'不存在");
 			}
 			else {
-				ViewObjectStruct viewStruct = dbTransaction.doSimpleDal(context -> {
-					return context.getDialect().getViewStruct(context.getConnection(), viewName);
+				ViewObjectStruct viewStruct = dbTransaction.doSimpleDal(ctx -> {
+					if (!ctx.getDialect().getStructHandler().supportsView()) {
+						throw new CommonException("不支持数据视图结构的查询");
+					}
+					return ctx.getDialect().getStructHandler().getView(ctx.getConnection(), name);
 				});
-				cache.put(viewName.toLowerCase(), viewStruct);
-				viewObjectStruct = (ViewObjectStruct) cache.get(viewName.toLowerCase());
+				cache.put(name.toLowerCase(), viewStruct);
+				viewObjectStruct = (ViewObjectStruct) cache.get(name.toLowerCase());
 			}
 		}
 		return viewObjectStruct;

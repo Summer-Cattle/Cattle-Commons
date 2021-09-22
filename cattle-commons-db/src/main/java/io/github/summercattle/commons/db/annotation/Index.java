@@ -22,6 +22,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import org.springframework.core.annotation.AliasFor;
+
 /**
  * 索引的注解
  */
@@ -30,12 +32,6 @@ import java.lang.annotation.Target;
 @Documented
 @Inherited
 public @interface Index {
-
-	/**
-	 * 索引名称
-	 * @return 索引名称
-	 */
-	String name();
 
 	/**
 	 * 是否唯一索引
@@ -47,5 +43,13 @@ public @interface Index {
 	 * 索引字段信息
 	 * @return 索引字段信息
 	 */
-	String fields();
+	@AliasFor("fields")
+	String value() default "";
+
+	/**
+	 * 索引字段信息
+	 * @return 索引字段信息
+	 */
+	@AliasFor("value")
+	String fields() default "";
 }

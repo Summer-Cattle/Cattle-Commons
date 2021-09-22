@@ -15,19 +15,19 @@
  */
 package io.github.summercattle.commons.db.dialect.impl;
 
-import java.sql.Connection;
+import io.github.summercattle.commons.db.dialect.pagination.LimitHandler;
+import io.github.summercattle.commons.db.dialect.pagination.Oracle12LimitHandler;
 
-import io.github.summercattle.commons.exception.CommonException;
+public class Oracle12cDialect extends Oracle10gDialect {
 
-public class Oracle12cDialect extends Oracle9iDialect {
+	private static final LimitHandler LIMIT_HANDLER = Oracle12LimitHandler.INSTANCE;
 
-	public Oracle12cDialect(Connection conn, String sqlKeywords) {
-		super(conn, sqlKeywords);
+	public Oracle12cDialect() {
+		super();
 	}
 
 	@Override
-	public String getPageLimitString(String sql, int startRowNum, int perPageSize) throws CommonException {
-		return sql + (startRowNum > 0 ? " OFFSET " + String.valueOf(startRowNum) + " ROWS FETCH NEXT " + String.valueOf(perPageSize) + " ROWS ONLY"
-				: " FETCH FIRST " + String.valueOf(perPageSize) + " ROWS ONLY");
+	public LimitHandler getLimitHandler() {
+		return LIMIT_HANDLER;
 	}
 }

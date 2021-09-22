@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>io.github.summercattle</groupId>
 		<artifactId>cattle-commons</artifactId>
-		<version>0.0.1</version>
+		<version>0.0.1.SP1</version>
 	</parent>
     <artifactId>cattle-commons-quartz</artifactId>
 	<name>${project.artifactId}</name>
@@ -23,14 +23,20 @@
     </organization>
 	<developers>
 		<developer>
+		    <id>juhua</id>
 			<name>juhua</name>
-			<url>https://github.com/Summer-Cattle</url>
+			<organization>Summer Cattle Team</organization>
+			<organizationUrl>https://github.com/Summer-Cattle</organizationUrl>
+            <roles>
+                <role>developer</role>
+            </roles>
 		</developer>
-	</developers>	
+	</developers>
 	<scm>
-		<url>https://github.com/Summer-Cattle/Cattle-Commons.git</url>
-		<connection>scm:git:https://git@github.com/Summer-Cattle/Cattle-Commons.git</connection>
-	</scm>	
+	    <connection>scm:git:https://github.com/Summer-Cattle/Cattle-Commons.git</connection>
+		<developerConnection>scm:git:git@github.com:Summer-Cattle/Cattle-Commons.git</developerConnection>
+		<url>https://github.com/Summer-Cattle/Cattle-Commons</url>
+	</scm>
     <packaging>jar</packaging>
 	<dependencies>
         <dependency>

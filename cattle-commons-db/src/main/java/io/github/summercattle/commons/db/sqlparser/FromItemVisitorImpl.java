@@ -40,9 +40,9 @@ public class FromItemVisitorImpl implements FromItemVisitor {
 		Dialect dialect = SpringContext.getBean(Dialect.class);
 		String schema = tableName.getSchemaName();
 		if (StringUtils.isNotBlank(schema)) {
-			if (!schema.equals(dialect.getSchema())) {
-				return;
-			}
+//			if (!schema.equals(dialect.getSchema())) {
+//				return;
+//			}
 		}
 		String name = tableName.getName();
 		try {

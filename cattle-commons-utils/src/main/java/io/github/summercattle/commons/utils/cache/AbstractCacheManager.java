@@ -74,7 +74,9 @@ public abstract class AbstractCacheManager implements CacheManager {
 		if (StringUtils.isBlank(name)) {
 			throw new CommonException("缓存分类键值为空");
 		}
-		Cache cache = caches.get(name);
-		cache.clear();
-	}	
+		if (caches.containsKey(name)) {
+			Cache cache = caches.get(name);
+			cache.clear();
+		}
+	}
 }

@@ -55,12 +55,6 @@ public interface TableMeta {
 	boolean isPrimaryKeyUseNumber();
 
 	/**
-	 * 主键约束名称
-	 * @return 主键约束名称
-	 */
-	String getPrimaryKeyName();
-
-	/**
 	 * 得到所有字段定义信息
 	 * @return 字段定义信息
 	 */

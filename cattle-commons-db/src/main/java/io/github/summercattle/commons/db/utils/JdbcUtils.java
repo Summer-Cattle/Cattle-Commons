@@ -28,9 +28,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.github.summercattle.commons.db.constants.DataType;
 import io.github.summercattle.commons.exception.CommonException;
-import io.github.summercattle.commons.exception.CommonRuntimeException;
 import io.github.summercattle.commons.utils.exception.ExceptionWrapUtils;
 import io.github.summercattle.commons.utils.reflect.ClassType;
 import io.github.summercattle.commons.utils.reflect.ReflectUtils;
@@ -203,34 +201,78 @@ public class JdbcUtils {
 		}
 	}
 
-	public static DataType getDataType(int jdbcDataType) {
-		if (jdbcDataType == Types.VARCHAR) {
-			return DataType.String;
+	public static Object getSingleValue(Connection conn, String strSQL) throws CommonException {
+		ResultSet rs = null;
+		PreparedStatement ps = null;
+		try {
+			ps = conn.prepareStatement(strSQL);
+			rs = executeQuery(ps, "执行SQL语句:" + strSQL);
+			if (rs.next()) {
+				return rs.getObject(1);
+			}
+			return null;
 		}
-		else if (jdbcDataType == Types.NVARCHAR) {
-			return DataType.NString;
+		catch (SQLException e) {
+			throw ExceptionWrapUtils.wrap(e);
 		}
-		else if (jdbcDataType == Types.TIMESTAMP) {
-			return DataType.Timestamp;
+		finally {
+			JdbcUtils.closeResultSet(rs);
+			JdbcUtils.closeStatement(ps);
 		}
-		else if (jdbcDataType == Types.DATE) {
-			return DataType.Date;
+	}
+
+	public static int getJdbcDataType(String typeName) throws CommonException {
+		if (typeName.equalsIgnoreCase("DECIMAL") || typeName.equalsIgnoreCase("NUMBER")) {
+			return Types.DECIMAL;
 		}
-		else if (jdbcDataType == Types.TIME) {
-			return DataType.Time;
+		else if (typeName.equalsIgnoreCase("TIMESTAMP") || typeName.equalsIgnoreCase("DATETIME")) {
+			return Types.TIMESTAMP;
 		}
-		else if (jdbcDataType == Types.LONGVARCHAR || jdbcDataType == Types.CLOB) {
-			return DataType.Clob;
+		else if (typeName.equalsIgnoreCase("TIME")) {
+			return Types.TIME;
 		}
-		else if (jdbcDataType == Types.LONGNVARCHAR || jdbcDataType == Types.NCLOB) {
-			return DataType.NClob;
+		else if (typeName.equalsIgnoreCase("DATE")) {
+			return Types.DATE;
 		}
-		else if (jdbcDataType == Types.LONGVARBINARY || jdbcDataType == Types.BLOB) {
-			return DataType.Blob;
+		else if (typeName.equalsIgnoreCase("VARCHAR") || typeName.equalsIgnoreCase("VARCHAR2")) {
+			return Types.VARCHAR;
 		}
-		else if (jdbcDataType == Types.DECIMAL || jdbcDataType == Types.NUMERIC || jdbcDataType == Types.INTEGER) {
-			return DataType.Number;
+		else if (typeName.equalsIgnoreCase("LONG")) {
+			return Types.LONGVARCHAR;
 		}
-		throw new CommonRuntimeException("未知的JDBC数据类型'" + jdbcDataType + "'");
+		else if (typeName.equalsIgnoreCase("NVARCHAR2")) {
+			return Types.NVARCHAR;
+		}
+		else if (typeName.equalsIgnoreCase("RAW")) {
+			return Types.BINARY;
+		}
+		else if (typeName.equalsIgnoreCase("LONG RAW")) {
+			return Types.LONGVARBINARY;
+		}
+		else if (typeName.equalsIgnoreCase("CLOB") || typeName.equalsIgnoreCase("LONGTEXT")) {
+			return Types.CLOB;
+		}
+		else if (typeName.equalsIgnoreCase("NCLOB")) {
+			return Types.NCLOB;
+		}
+		else if (typeName.equalsIgnoreCase("BLOB") || typeName.equalsIgnoreCase("LONGBLOB") || typeName.equalsIgnoreCase("TINYBLOB")
+				|| typeName.equalsIgnoreCase("MEDIUMBLOB")) {
+			return Types.BLOB;
+		}
+		else if (typeName.equalsIgnoreCase("BIT")) {
+			return Types.BIT;
+		}
+		else if (typeName.equalsIgnoreCase("DOUBLE") || typeName.equalsIgnoreCase("BINARY_DOUBLE")) {
+			return Types.DOUBLE;
+		}
+		throw new CommonException("类型'" + typeName + "'没有匹配到java.sql.Types");
+	}
+
+	public static boolean isNumeric(int jdbcType) {
+		return Types.DECIMAL == jdbcType || Types.NUMERIC == jdbcType;
+	}
+
+	public static boolean isString(int jdbcType) {
+		return Types.VARCHAR == jdbcType || Types.NVARCHAR == jdbcType || Types.CLOB == jdbcType || Types.NCLOB == jdbcType;
 	}
 }

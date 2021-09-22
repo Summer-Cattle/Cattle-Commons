@@ -15,263 +15,319 @@
  */
 package io.github.summercattle.commons.db.dialect;
 
-import java.sql.Connection;
-
 import io.github.summercattle.commons.db.constants.DataType;
-import io.github.summercattle.commons.db.constants.DatabaseType;
-import io.github.summercattle.commons.db.struct.TableObjectStruct;
-import io.github.summercattle.commons.db.struct.ViewObjectStruct;
+import io.github.summercattle.commons.db.dialect.pagination.LimitHandler;
 import io.github.summercattle.commons.exception.CommonException;
+import io.github.summercattle.commons.exception.CommonRuntimeException;
 
 /**
  * 数据库方言
  */
-public interface Dialect {
+public abstract class Dialect {
 
-	/**
-	 * 数据库类型
-	 * @return 数据库类型
-	 */
-	DatabaseType getType();
+	private final TypeNames typeNames = new TypeNames();
 
-	/**
-	 * 数据库模式名
-	 * @return 数据库模式名
-	 */
-	String getSchema();
+	private String schema;
 
-	/**
-	 * 数据库有效语句
-	 * @return 数据库有效语句
-	 */
-	String getValidateQuery();
+	public Dialect() {
+		registerColumnType(DataType.Boolean, "boolean");
+		registerColumnType(DataType.String, "varchar", "varchar($l)");
+		registerColumnType(DataType.NString, "nvarchar", "nvarchar($l)");
+		registerColumnType(DataType.LongString, "varchar", "varchar($l)");
+		registerColumnType(DataType.Binary, "bit varying", "bit varying($l)");
+		registerColumnType(DataType.LongBinary, "bit varying", "bit varying($l)");
+		registerColumnType(DataType.Clob, "clob");
+		registerColumnType(DataType.NClob, "nclob");
+		registerColumnType(DataType.Blob, "blob");
+		registerColumnType(DataType.Date, "date");
+		registerColumnType(DataType.Time, "time");
+		registerColumnType(DataType.Timestamp, "timestamp");
+		registerColumnType(DataType.Number, "decimal", "decimal($p,$s)");
+		registerColumnType(DataType.Double, "double precision");
+	}
 
-	/**
-	 * 是否支持Unicode字符串类型
-	 * @return 是否支持Unicode字符串类型
-	 */
-	boolean supportsUnicodeStringType();
+	@Override
+	public String toString() {
+		return getClass().getName();
+	}
 
-	/**
-	 * 是否支持当前时间查询语句
-	 * @return 是否支持当前时间查询语句
-	 */
-	boolean supportsCurrentTimestampSelection();
+	public String getTypeName(DataType dataType) throws CommonException {
+		String result = typeNames.get(dataType);
+		if (result == null) {
+			throw new CommonException("没有默认类型映射数据类型:" + dataType.toString());
+		}
+		return result;
+	}
 
-	/**
-	 * 当前时间查询语句
-	 * @return 当前时间查询语句
-	 */
-	String getCurrentTimestampSelectString();
+	public String getTypeSimpleName(DataType dataType) throws CommonException {
+		String result = typeNames.getSimple(dataType);
+		if (result == null) {
+			throw new CommonException("没有默认类型映射数据类型:" + dataType.toString());
+		}
+		return result;
+	}
 
-	/**
-	 * 是否支持当前时间调用语句
-	 * @return 是否支持当前时间调用语句
-	 */
-	boolean isCurrentTimestampSelectStringCallable();
+	public String getTypeName(DataType dataType, long length, int scale) throws CommonException {
+		String result = typeNames.get(dataType, length, scale);
+		if (null == result) {
+			throw new CommonException(String.format("没有类型映射数据类型:%s,长度:%s" + dataType.toString(), length));
+		}
+		return result;
+	}
 
-	/**
-	 * 当前时间调用语句
-	 * @return 当前时间调用语句
-	 * @throws CommonException 异常
-	 */
-	String getCurrentTimestampCallString() throws CommonException;
+	public String getTypeSimpleName(DataType dataType, long length, int scale) throws CommonException {
+		String result = typeNames.getSimple(dataType, length, scale);
+		if (null == result) {
+			throw new CommonException(String.format("没有类型映射数据类型:%s,长度:%s" + dataType.toString(), length));
+		}
+		return result;
+	}
 
-	/**
-	 * 是否支持分页查询
-	 * @return 是否支持分页查询
-	 */
-	boolean supportsPageLimitOffset();
-
-	/**
-	 * 分⻚语句
-	 * @param esql ESQL语句
-	 * @param startRowNum 开始行
-	 * @param perPageSize 每页大小
-	 * @return 分页语句
-	 * @throws CommonException 异常
-	 */
-	String getPageLimitString(String esql, int startRowNum, int perPageSize) throws CommonException;
-
-	/**
-	 * 是否过滤分页字段
-	 * @return 是否过滤分页字段
-	 */
-	boolean isFilterPageFields();
-
-	/**
-	 * 过滤分页字段
-	 * @return 过滤分页字段
-	 */
-	String[] getFilterPageFields();
+	public String getCurrentSchemaCommand() {
+		return null;
+	}
 
 	/**
 	 * 是否支持序列
 	 * @return 是否支持序列
 	 */
-	boolean supportsSequences();
+	public boolean supportsSequences() {
+		return false;
+	}
 
-	/**
-	 * 创建序列语句
-	 * @param sequenceName 序列名
-	 * @return 创建序列语句
-	 */
-	String getCreateSequenceString(String sequenceName);
-
-	/**
-	 * 查询序列语句
-	 * @return 查询序列语句
-	 */
-	String getQuerySequencesString();
+	public boolean supportsPooledSequences() {
+		return false;
+	}
 
 	/**
 	 * 查询下一个序列值语句
 	 * @param sequenceName 序列名
 	 * @return 查询下一个序列值语句
 	 */
-	String getSequenceNextValString(String sequenceName);
+	public String getSequenceNextValString(String sequenceName) {
+		throw new CommonRuntimeException(getClass().getName() + "不支持序列");
+	}
+
+	public String getSelectSequenceNextValString(String sequenceName) {
+		throw new CommonRuntimeException(getClass().getName() + "不支持序列");
+	}
 
 	/**
-	 * 表类型
-	 * @return 表类型
+	 * 创建序列语句
+	 * @param sequenceName 序列名
+	 * @return 创建序列语句
 	 */
-	String getTableTypeString();
+	public String getCreateSequenceCommand(String sequenceName) {
+		throw new CommonRuntimeException(getClass().getName() + "不支持序列");
+	}
+
+	public String getCreateSequenceCommand(String sequenceName, int initialValue, int incrementSize) throws CommonException {
+		if (supportsPooledSequences()) {
+			return getCreateSequenceCommand(sequenceName) + " start with " + initialValue + " increment by " + incrementSize;
+		}
+		throw new CommonException(getClass().getName() + "不支持序列池");
+	}
 
 	/**
-	 * 是否为保留关键字
-	 * @param str 内容
-	 * @return 是否为保留关键字
+	 * 查询序列语句
+	 * @return 查询序列语句
 	 */
-	boolean isSQLKeyword(String str);
+	public String getQuerySequencesCommand() {
+		throw new CommonRuntimeException(getClass().getName() + "不支持序列");
+	}
+
+	public String getSelectGUIDString() {
+		throw new CommonRuntimeException(getClass().getName() + "不支持GUID");
+	}
+
+	public String appendLock(String tableName) {
+		return tableName;
+	}
+
+	public String getForUpdateString() {
+		return " for update";
+	}
 
 	/**
-	 * 得到保留关键字
-	 * @param str 内容
-	 * @return 得到保留关键字
+	 * 是否支持当前时间查询语句
+	 * @return 是否支持当前时间查询语句
 	 */
-	String getSQLKeyword(String str);
-
-	String getSQLKeyword(String str, boolean sqlKeyword);
-
-	String getSQLKeywordMarks();
+	public boolean supportsCurrentTimestampSelection() {
+		return false;
+	}
 
 	/**
-	 * 注册列数据类型
-	 * @param dataType 数据类型
-	 * @param name 名称
+	 * 是否支持当前时间调用语句
+	 * @return 是否支持当前时间调用语句
 	 */
-	void registerColumnType(DataType dataType, String name);
+	public boolean isCurrentTimestampSelectStringCallable() {
+		throw new CommonRuntimeException("数据库不支持当前时间函数");
+	}
 
 	/**
-	 * 注册列数据类型
-	 * @param dataType 数据类型
-	 * @param capacity 容量
-	 * @param name 名称
+	 * 当前时间查询语句
+	 * @return 当前时间查询语句
 	 */
-	void registerColumnType(DataType dataType, long capacity, String name);
+	public String getCurrentTimestampSelectString() {
+		throw new CommonRuntimeException("数据库不支持当前时间函数");
+	}
+
+	public String getCurrentTimestampSQLFunctionName() {
+		return "current_timestamp";
+	}
+
+	public char openQuote() {
+		return '"';
+	}
+
+	public char closeQuote() {
+		return '"';
+	}
+
+	public final String quote(String name) {
+		return openQuote() + name + closeQuote();
+	}
+
+	public boolean supportsSubqueryOnMutatingTable() {
+		return true;
+	}
+
+	public String getAddColumnString() {
+		throw new CommonRuntimeException(getClass().getName() + "不支持列增加");
+	}
+
+	public String getAddColumnSuffixString() {
+		return "";
+	}
+
+	public String getNullColumnString() {
+		return "";
+	}
+
+	public String getTableTypeString() {
+		return "";
+	}
+
+	public String getAddPrimaryKeyString(String constraintName) {
+		return " add constraint " + constraintName + " primary key ";
+	}
+
+	public String getDropPrimaryKeyString(String constraintName) {
+		return " drop constraint " + constraintName;
+	}
+
+	public String getDropIndexCommand(String tableName, String indexName) {
+		return "drop index " + indexName;
+	}
+
+	public boolean supportsCommentOn() {
+		return false;
+	}
+
+	public String getTableComment(String comment) {
+		return "";
+	}
+
+	public String getColumnComment(String comment) {
+		return "";
+	}
+
+	public String getCreateTableString() {
+		return "create table";
+	}
+
+	public String getAlterTableString(String tableName) {
+		final StringBuilder sb = new StringBuilder("alter table ");
+		if (supportsIfExistsAfterAlterTable()) {
+			sb.append("if exists ");
+		}
+		sb.append(tableName);
+		return sb.toString();
+	}
+
+	public boolean supportsIfExistsAfterAlterTable() {
+		return false;
+	}
+
+	public String getNotExpression(String expression) {
+		return "not " + expression;
+	}
+
+	public boolean supportsLimit() {
+		return false;
+	}
+
+	public LimitHandler getLimitHandler() {
+		throw new CommonRuntimeException(getClass().getName() + "不支持分页");
+	}
+
+	public boolean supportsUnionAll() {
+		return false;
+	}
+
+	public String getSelectClauseNullString(int sqlType) {
+		return "null";
+	}
+
+	public int getInExpressionCountLimit() {
+		return 0;
+	}
+
+	public boolean supportsExistsInSelect() {
+		return true;
+	}
+
+	public boolean supportsSubselectAsInPredicateLHS() {
+		return true;
+	}
+
+	protected void registerColumnType(DataType dataType, long capacity, String name) {
+		typeNames.put(dataType, capacity, name, name);
+	}
+
+	protected void registerColumnType(DataType dataType, long capacity, String simpleName, String name) {
+		typeNames.put(dataType, capacity, simpleName, name);
+	}
+
+	protected void registerColumnType(DataType dataType, String name) {
+		registerColumnType(dataType, name, name);
+	}
+
+	protected void registerColumnType(DataType dataType, String simpleName, String name) {
+		typeNames.put(dataType, simpleName, name);
+	}
 
 	/**
-	 * 得到类型名称
-	 * @param dataType 数据类型
-	 * @return 类型名称
-	 * @throws CommonException 异常
+	 * 数据结构查询
+	 * @return 数据结构查询
 	 */
-	String getTypeName(DataType dataType) throws CommonException;
+	public StructHandler getStructHandler() {
+		throw new CommonRuntimeException(getClass().getName() + "不支持数据结构查询");
+	}
 
 	/**
-	 * 得到类型名称
-	 * @param dataType 数据类型
-	 * @param length 长度
-	 * @param precision 精度
-	 * @return 类型名称 
-	 * @throws CommonException 异常
+	 * 数据库模式名
+	 * @return 数据库模式名
 	 */
-	String getTypeName(DataType dataType, long length, int precision) throws CommonException;
+	public String getSchema() {
+		return schema;
+	}
 
-	/**
-	 * 得到增加列的关键字
-	 * @return 增加列的关键字
-	 */
-	String getAddColumnString();
+	public String getModifyColumnString() {
+		throw new CommonRuntimeException(getClass().getName() + "不支持列修改");
+	}
 
-	/**
-	 * 得到修改列的关键字
-	 * @return 修改列的关键字
-	 */
-	String getModifyColumnString();
+	public String getModifyColumnDataTypeCommand(String tableName, String fieldName, DataType dataType, int length, int scale, boolean allowNull,
+			String defaultValue, String comment) throws CommonException {
+		throw new CommonException(getClass().getName() + "不支持列类型修改");
+	}
 
-	/**
-	 * 得到增加主键的关键字
-	 * @param constraintName 约束名
-	 * @return 增加主键的关键字
-	 */
-	String getAddPrimaryKeyConstraintString(String constraintName);
+	public String getModifyColumnNullCommand(String tableName, String fieldName, DataType dataType, int length, int scale, boolean allowNull,
+			String defaultValue, String comment) throws CommonException {
+		throw new CommonException(getClass().getName() + "不支持列空值修改");
+	}
 
-	/**
-	 * 得到删除主键的关键字
-	 * @param constraintName 约束名
-	 * @return 删除主键的关键字
-	 */
-	String getDropPrimaryKeyConstraintString(String constraintName);
-
-	/**
-	 * 得到删除索引语句
-	 * @param tableName 表名
-	 * @param indexName 索引名
-	 * @return 删除索引语句
-	 */
-	String getDropIndexString(String tableName, String indexName);
-
-	/**
-	 * 得到行锁的关键字
-	 * @return 行锁的关键字
-	 */
-	String getForUpdateString();
-
-	/**
-	 * 给指定表增加锁的关键字
-	 * @param tableName 表名
-	 * @return 给指定表增加锁的关键字
-	 */
-	String appendLock(String tableName);
-
-	/**
-	 * 得到指定表名的数据表结构
-	 * @param conn 数据库连接
-	 * @param tableName 表名
-	 * @return 数据表结构
-	 * @throws CommonException 异常
-	 */
-	TableObjectStruct getTableStruct(Connection conn, String tableName) throws CommonException;
-
-	/**
-	 * 是否存在指定表
-	 * @param conn 数据库连接
-	 * @param tableName 表名
-	 * @return 是否存在指定表 
-	 * @throws CommonException 异常
-	 */
-	boolean existTable(Connection conn, String tableName) throws CommonException;
-
-	/**
-	 * 得到指定视图名的视图结构
-	 * @param conn 数据库连接
-	 * @param viewName 视图名
-	 * @return 视图结构
-	 * @throws CommonException 异常
-	 */
-	ViewObjectStruct getViewStruct(Connection conn, String viewName) throws CommonException;
-
-	/**
-	 * 是否指定视图
-	 * @return 是否存在指定视图
-	 * @throws CommonException 异常
-	 */
-	boolean existView(Connection conn, String viewName) throws CommonException;
-
-	/**
-	 * 当前时间函数名
-	 * @return 当前时间函数名
-	 */
-	String getCurrentTimestampSQLFunctionName();
+	public String getModifyColumnDefaultCommand(String tableName, String fieldName, DataType dataType, String defaultValue) {
+		throw new CommonRuntimeException(getClass().getName() + "不支持列缺省值修改");
+	}
 }

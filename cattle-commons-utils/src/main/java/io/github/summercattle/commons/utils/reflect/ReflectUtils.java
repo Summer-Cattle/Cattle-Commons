@@ -104,9 +104,6 @@ public class ReflectUtils {
 		else if (typeCls == String.class) {
 			type = ClassType.String;
 		}
-		else if (typeCls == Float.class || typeCls == float.class) {
-			type = ClassType.Float;
-		}
 		else if (typeCls == Boolean.class || typeCls == boolean.class) {
 			type = ClassType.Boolean;
 		}
@@ -195,9 +192,6 @@ public class ReflectUtils {
 							}
 							else if (valueType == ClassType.Double) {
 								obj = new BigDecimal((Double) value);
-							}
-							else if (valueType == ClassType.Float) {
-								obj = new BigDecimal(((Float) value).doubleValue());
 							}
 							else if (valueType == ClassType.Boolean) {
 								obj = ((Boolean) value) ? BigDecimal.ONE : BigDecimal.ZERO;

@@ -86,13 +86,14 @@ public class AbstractDalContextImpl implements AbstractDalContext {
 		}
 	}
 
-	protected void setParams(PreparedStatement ps, int index, Object[] params, String info) throws CommonException {
+	protected int setParams(PreparedStatement ps, int index, Object[] params, String info) throws CommonException {
 		try {
 			int lIndex = index;
 			for (int i = 0; i < params.length; i++) {
 				JdbcUtils.setDbObject(ps, lIndex, params[i]);
 				lIndex++;
 			}
+			return lIndex;
 		}
 		catch (CommonException e) {
 			logger.warn(info + ",出现异常:" + e.getMessage());

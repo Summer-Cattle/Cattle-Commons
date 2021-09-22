@@ -61,7 +61,7 @@ public @interface FixedField {
 	 * 精度	
 	 * @return 精度
 	 */
-	int precision() default 0;
+	int scale() default 0;
 
 	/**
 	 * 允许为空

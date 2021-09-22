@@ -15,43 +15,31 @@
  */
 package io.github.summercattle.commons.db.struct.impl;
 
-import io.github.summercattle.commons.db.constants.DataType;
 import io.github.summercattle.commons.db.struct.FieldStruct;
 
 public class FieldStructImpl implements FieldStruct {
 
 	private String name;
 
-	private DataType type;
-
 	private int jdbcType;
 
 	private String typeName;
 
-	private long size;
+	private long length;
 
-	private int decimalDigits;
+	private int scale;
 
-	private boolean sqlKeyword;
-
-	public FieldStructImpl(String name, DataType type, int jdbcType, String typeName, long size, int decimalDigits, boolean sqlKeyword) {
+	public FieldStructImpl(String name, int jdbcType, String typeName, long length, int scale) {
 		this.name = name;
-		this.type = type;
 		this.jdbcType = jdbcType;
 		this.typeName = typeName;
-		this.size = size;
-		this.decimalDigits = decimalDigits;
-		this.sqlKeyword = sqlKeyword;
+		this.length = length;
+		this.scale = scale;
 	}
 
 	@Override
 	public String getName() {
 		return name;
-	}
-
-	@Override
-	public DataType getType() {
-		return type;
 	}
 
 	@Override
@@ -65,17 +53,12 @@ public class FieldStructImpl implements FieldStruct {
 	}
 
 	@Override
-	public long getSize() {
-		return size;
+	public long getLength() {
+		return length;
 	}
 
 	@Override
-	public int getDecimalDigits() {
-		return decimalDigits;
-	}
-
-	@Override
-	public boolean isSqlKeyword() {
-		return sqlKeyword;
+	public int getScale() {
+		return scale;
 	}
 }

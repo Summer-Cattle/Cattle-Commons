@@ -33,8 +33,6 @@ public class FieldTypes {
 
 	private static final AbstractField DOUBLE = new DoubleField();
 
-	private static final AbstractField FLOAT = new FloatField();
-
 	private static final AbstractField INTEGER = new IntegerField();
 
 	private static final AbstractField SHORT = new ShortField();
@@ -62,7 +60,7 @@ public class FieldTypes {
 		if (code == Types.BIGINT) {
 			fieldType = FieldTypes.BIG_INTEGER;
 		}
-		else if (code == Types.BINARY || code == Types.VARBINARY) {
+		else if (code == Types.BINARY || code == Types.VARBINARY || code == Types.LONGVARBINARY) {
 			fieldType = FieldTypes.BINARY;
 		}
 		else if (code == Types.BIT) {
@@ -76,9 +74,6 @@ public class FieldTypes {
 		}
 		else if (code == Types.DOUBLE) {
 			fieldType = FieldTypes.DOUBLE;
-		}
-		else if (code == Types.FLOAT || code == Types.REAL) {
-			fieldType = FieldTypes.FLOAT;
 		}
 		else if (code == Types.INTEGER) {
 			fieldType = FieldTypes.INTEGER;
@@ -104,7 +99,7 @@ public class FieldTypes {
 		else if (code == Types.NUMERIC || code == Types.DECIMAL) {
 			fieldType = FieldTypes.BIG_DECIMAL;
 		}
-		else if (code == Types.BLOB || code == Types.LONGVARBINARY) {
+		else if (code == Types.BLOB) {
 			fieldType = FieldTypes.BLOB;
 		}
 		else if (code == Types.CLOB) {

@@ -113,7 +113,7 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 			throw new CommonException("查询的页码必须大于0");
 		}
 		boolean isCustomPage = false;
-		if (!getDialect().supportsPageLimitOffset() && page > 1) {
+		if (!getDialect().getLimitHandler().supportsLimitOffset() && page > 1) {
 			isCustomPage = true;
 		}
 		PreparedStatement psCount = null;
@@ -152,12 +152,21 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 				ps = conn.prepareStatement(lStrSQL, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
 			}
 			else {
-				String tStrSQL = getDialect().getPageLimitString(lStrSQL.trim(), (page - 1) * perPageSize, perPageSize);
-				executeInfo = "执行SQL语句:" + tStrSQL + ",参数值:" + (params != null && params.length > 0 ? ArrayUtils.toString(params) : "无");
+				String tStrSQL = getDialect().getLimitHandler().processSql(lStrSQL.trim(), (page - 1) * perPageSize);
+				Object[] outputParams = getDialect().getLimitHandler().getOutputParameters(params, (page - 1) * perPageSize, perPageSize);
+				executeInfo = "执行SQL语句:" + tStrSQL + ",参数值:"
+						+ (outputParams != null && outputParams.length > 0 ? ArrayUtils.toString(outputParams) : "无");
 				ps = conn.prepareStatement(tStrSQL);
 			}
+			int index = 1;
+			if (!isCustomPage) {
+				index += getDialect().getLimitHandler().bindLimitParametersAtStartOfQuery((page - 1) * perPageSize, perPageSize, ps, index);
+			}
 			if (params != null && params.length > 0) {
-				setParams(ps, 1, params, executeInfo);
+				index = setParams(ps, index, params, executeInfo);
+			}
+			if (!isCustomPage) {
+				index += getDialect().getLimitHandler().bindLimitParametersAtEndOfQuery((page - 1) * perPageSize, perPageSize, ps, index);
 			}
 			rs = JdbcUtils.executeQuery(ps, executeInfo);
 			return new PageDataQueryImpl(getDialect(), rs, isCustomPage, perPageSize, page, totalRecords);
@@ -185,7 +194,7 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 			throw new CommonException("查询的页码必须大于0");
 		}
 		boolean isCustomPage = false;
-		if (!getDialect().supportsPageLimitOffset() && page > 1) {
+		if (!getDialect().getLimitHandler().supportsLimitOffset() && page > 1) {
 			isCustomPage = true;
 		}
 		PreparedStatement ps = null;
@@ -197,12 +206,21 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 				ps = conn.prepareStatement(lStrSQL, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
 			}
 			else {
-				String tStrSQL = getDialect().getPageLimitString(lStrSQL.trim(), (page - 1) * perPageSize, perPageSize + 1);
-				executeInfo = "执行SQL语句:" + tStrSQL + ",参数值:" + (params != null && params.length > 0 ? ArrayUtils.toString(params) : "无");
+				String tStrSQL = getDialect().getLimitHandler().processSql(lStrSQL.trim(), (page - 1) * perPageSize);
+				Object[] outputParams = getDialect().getLimitHandler().getOutputParameters(params, (page - 1) * perPageSize, perPageSize + 1);
+				executeInfo = "执行SQL语句:" + tStrSQL + ",参数值:"
+						+ (outputParams != null && outputParams.length > 0 ? ArrayUtils.toString(outputParams) : "无");
 				ps = conn.prepareStatement(tStrSQL, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
 			}
+			int index = 1;
+			if (!isCustomPage) {
+				index += getDialect().getLimitHandler().bindLimitParametersAtStartOfQuery((page - 1) * perPageSize, perPageSize + 1, ps, index);
+			}
 			if (params != null && params.length > 0) {
-				setParams(ps, 1, params, executeInfo);
+				index = setParams(ps, index, params, executeInfo);
+			}
+			if (!isCustomPage) {
+				index += getDialect().getLimitHandler().bindLimitParametersAtEndOfQuery((page - 1) * perPageSize, perPageSize + 1, ps, index);
 			}
 			rs = JdbcUtils.executeQuery(ps, executeInfo);
 			return new DynamicPageDataQueryImpl(getDialect(), rs, isCustomPage, perPageSize, page);
@@ -217,58 +235,57 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 	}
 
 	@Override
-	public DataTable select(String tableName, String condition, Object[] params) throws CommonException {
-		return select(tableName, null, condition, params);
+	public DataTable select(String name, String condition, Object[] params) throws CommonException {
+		return select(name, null, condition, params);
 	}
 
 	@Override
-	public DataTable select(String tableName, String orderBy, String condition, Object[] params) throws CommonException {
-		return select(tableName, orderBy, condition, params, false);
+	public DataTable select(String name, String orderBy, String condition, Object[] params) throws CommonException {
+		return select(name, orderBy, condition, params, false);
 	}
 
 	@Override
-	public DataTable select(String tableName, Object primaryValue) throws CommonException {
+	public DataTable select(String name, Object primaryValue) throws CommonException {
 		DbProperties dbProperties = SpringContext.getBean(DbProperties.class);
-		return select(tableName, null, dbProperties.getPrimaryField() + "=?", new Object[] { primaryValue }, true);
+		return select(name, null, dbProperties.getPrimaryField() + "=?", new Object[] { primaryValue }, true);
 	}
 
 	@Override
-	public DataTable select(String tableName) throws CommonException {
-		return select(tableName, false);
+	public DataTable select(String name) throws CommonException {
+		return select(name, false);
 	}
 
 	@Override
-	public DataTable select(String tableName, boolean includeDeleted) throws CommonException {
-		return select(tableName, null, null, null, includeDeleted);
+	public DataTable select(String name, boolean includeDeleted) throws CommonException {
+		return select(name, null, null, null, includeDeleted);
 	}
 
 	@Override
-	public DataTable select(String tableName, String orderBy, String condition, Object[] params, boolean includeDeleted) throws CommonException {
-		checkTableName(tableName);
-		TableMeta tableMeta = DbUtils.getDbMetaModel().getTable(tableName);
+	public DataTable select(String name, String orderBy, String condition, Object[] params, boolean includeDeleted) throws CommonException {
+		checkName(name);
+		TableMeta tableMeta = DbUtils.getDbMetaModel().getTable(name);
 		boolean useCache = tableMeta.isUseCache();
 		DbProperties dbProperties = SpringContext.getBean(DbProperties.class);
 		TableObjectStruct tableStruct = DbUtils.getDbStruct().getTableStruct(dbProperties, tableMeta);
 		StringBuffer sb = new StringBuffer();
 		sb.append("select ");
-		sb.append(dialect.getSQLKeyword(dbProperties.getPrimaryField()) + ",");
+		sb.append(dialect.quote(dbProperties.getPrimaryField()) + ",");
 		FieldMeta[] fieldMetas = tableMeta.getFields();
 		for (FieldMeta fieldMeta : fieldMetas) {
-			sb.append(dialect.getSQLKeyword(fieldMeta.getName()) + ",");
+			sb.append(dialect.quote(fieldMeta.getName()) + ",");
 		}
-		String name = tableMeta.getName();
-		sb.append(dialect.getSQLKeyword(dbProperties.getCreateTimeField()) + ",");
-		sb.append(dialect.getSQLKeyword(dbProperties.getUpdateTimeField()) + ",");
-		sb.append(dialect.getSQLKeyword(dbProperties.getVersionField()) + ",");
-		sb.append(dialect.getSQLKeyword(dbProperties.getDeletedField()));
-		sb.append(" from " + dialect.getSQLKeyword(name));
+		String tableName = tableMeta.getName();
+		sb.append(dialect.quote(dbProperties.getCreateTimeField()) + ",");
+		sb.append(dialect.quote(dbProperties.getUpdateTimeField()) + ",");
+		sb.append(dialect.quote(dbProperties.getVersionField()) + ",");
+		sb.append(dialect.quote(dbProperties.getDeletedField()));
+		sb.append(" from " + tableName);
 		Object[] lParams = StringUtils.isNotBlank(condition) && params != null && params.length > 0
 				? new Object[params.length + (includeDeleted ? 0 : 1)]
 				: new Object[0 + (includeDeleted ? 0 : 1)];
 		String filter = "";
 		if (!includeDeleted) {
-			filter += "(" + dialect.getSQLKeyword(dbProperties.getDeletedField()) + "=? or " + dialect.getSQLKeyword(dbProperties.getDeletedField())
-					+ " is null)";
+			filter += "(" + dialect.quote(dbProperties.getDeletedField()) + "=? or " + dialect.quote(dbProperties.getDeletedField()) + " is null)";
 			lParams[0] = 0;
 		}
 		if (StringUtils.isNotBlank(condition)) {
@@ -293,10 +310,10 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 		String cacheKey = null;
 		if (useCache) {
 			cacheKey = Hex.encodeHexString(DigestUtils.md5(lParams.length > 0 ? sb.toString() + strParam : sb.toString()));
-			Cache cache = cacheManager.getCache(DataConstants.CAFFEINE_SELECT + "_" + name.toUpperCase(), dbProperties.getCacheProps());
+			Cache cache = cacheManager.getCache(DataConstants.CAFFEINE_SELECT + "_" + tableName.toUpperCase(), dbProperties.getCacheProps());
 			dataTable = (DataTable) cache.get(cacheKey);
 			if (dataTable != null) {
-				logger.debug("在数据库缓存'" + name + "'中读出数据,缓存Key'" + cacheKey + "'");
+				logger.debug("在数据库缓存'" + tableName + "'中读出数据,缓存Key'" + cacheKey + "'");
 			}
 		}
 		if (dataTable == null) {
@@ -312,9 +329,9 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 				dataTable = new DataTableImpl(dbProperties, rs, tableMeta, tableStruct);
 				//有记录的情况下才做缓存
 				if (useCache && dataTable.size() > 0) {
-					Cache cache = cacheManager.getCache(DataConstants.CAFFEINE_SELECT + "_" + name.toUpperCase(), dbProperties.getCacheProps());
+					Cache cache = cacheManager.getCache(DataConstants.CAFFEINE_SELECT + "_" + tableName.toUpperCase(), dbProperties.getCacheProps());
 					cache.put(cacheKey, dataTable);
-					logger.debug("在数据库缓存'" + name + "'中存入数据,缓存Key'" + cacheKey + "'");
+					logger.debug("在数据库缓存'" + tableName + "'中存入数据,缓存Key'" + cacheKey + "'");
 				}
 			}
 			catch (SQLException e) {
@@ -329,9 +346,9 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 	}
 
 	@Override
-	public DataTable create(String tableName) throws CommonException {
-		checkTableName(tableName);
-		TableMeta tableMeta = DbUtils.getDbMetaModel().getTable(tableName);
+	public DataTable create(String name) throws CommonException {
+		checkName(name);
+		TableMeta tableMeta = DbUtils.getDbMetaModel().getTable(name);
 		DbProperties dbProperties = SpringContext.getBean(DbProperties.class);
 		TableObjectStruct tableStruct = DbUtils.getDbStruct().getTableStruct(dbProperties, tableMeta);
 		return new DataTableImpl(dbProperties, tableMeta, tableStruct);
@@ -343,21 +360,21 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 		int[] fieldTypes = ((InternalDataTable) dataTable).getFieldTypes();
 		Map<String, Integer> fieldIndexes = ((InternalDataTable) dataTable).getFieldIndexes();
 		String tableName = dataTable.getName();
+		String alias = dataTable.getAlias();
 		//处理删除
 		RowLineSet[] deleteLines = ((InternalDataTable) dataTable).getDeleteLines();
-		boolean[] fieldUseSQLKeyword = ((InternalDataTable) dataTable).getFieldUseSQLKeyword();
 		DbProperties dbProperties = SpringContext.getBean(DbProperties.class);
 		if (deleteLines.length > 0) {
-			rowDelete(dbProperties, tableName, fieldNames, fieldTypes, fieldIndexes, deleteLines);
+			rowDelete(dbProperties, tableName, alias, fieldNames, fieldTypes, fieldIndexes, deleteLines);
 		}
 		List<RowLineSet> addLines = new Vector<RowLineSet>();
 		List<RowLineSet> modifyLines = new Vector<RowLineSet>();
 		((InternalDataTable) dataTable).setAddAndModifyLines(addLines, modifyLines);
 		if (addLines != null & addLines.size() > 0) {
-			rowAdd(dbProperties, tableName, fieldNames, fieldTypes, fieldIndexes, addLines, fieldUseSQLKeyword);
+			rowAdd(dbProperties, tableName, fieldNames, fieldTypes, fieldIndexes, addLines);
 		}
 		if (modifyLines != null & modifyLines.size() > 0) {
-			rowModify(dbProperties, tableName, fieldNames, fieldTypes, fieldIndexes, modifyLines, fieldUseSQLKeyword);
+			rowModify(dbProperties, tableName, fieldNames, fieldTypes, fieldIndexes, modifyLines);
 		}
 		if (((InternalDataTable) dataTable).isUseCache()) {
 			logger.debug("清除数据库缓存'" + tableName + "'");
@@ -366,40 +383,35 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 	}
 
 	private void rowAdd(DbProperties dbProperties, String tableName, String[] fieldNames, int[] fieldTypes, Map<String, Integer> fieldIndexes,
-			List<RowLineSet> addLines, boolean[] fieldUseSQLKeyword) throws CommonException {
+			List<RowLineSet> addLines) throws CommonException {
 		Integer versionFieldIndex = fieldIndexes.get(dbProperties.getVersionField().toUpperCase());
-		if (versionFieldIndex == null) {
-			throw new CommonException("没有找到表" + tableName + "的版本字段" + dbProperties.getVersionField());
-		}
 		Integer primaryFieldIndex = fieldIndexes.get(dbProperties.getPrimaryField().toUpperCase());
-		if (primaryFieldIndex == null) {
-			throw new CommonException("没有找到表" + tableName + "的主键字段" + dbProperties.getPrimaryField());
-		}
-		String lTableName = dialect.getSQLKeyword(tableName);
-		String primaryField = dialect.getSQLKeyword(dbProperties.getPrimaryField());
-		String versionField = dialect.getSQLKeyword(dbProperties.getVersionField());
-		String createTimeField = dialect.getSQLKeyword(dbProperties.getCreateTimeField());
+		Integer deletedFieldIndex = fieldIndexes.get(dbProperties.getDeletedField().toUpperCase());
+		String primaryField = dialect.quote(dbProperties.getPrimaryField());
+		String versionField = dialect.quote(dbProperties.getVersionField());
+		String createTimeField = dialect.quote(dbProperties.getCreateTimeField());
+		String deletedField = dialect.quote(dbProperties.getDeletedField());
 		PreparedStatement ps = null;
 		try {
 			StringBuffer sb = new StringBuffer();
 			StringBuffer sb2 = new StringBuffer();
 			sb2.append(") values (?");
-			sb.append("insert into " + lTableName + " (" + primaryField);
+			sb.append("insert into " + tableName + " (" + primaryField);
 			for (int i = 0; i < fieldNames.length; i++) {
 				sb.append(",");
 				sb2.append(",");
-				sb.append(dialect.getSQLKeyword(fieldNames[i], fieldUseSQLKeyword[i]));
+				sb.append(dialect.quote(fieldNames[i]));
 				sb2.append("?");
 			}
-			sb.append("," + createTimeField + "," + versionField);
+			sb.append("," + createTimeField + "," + versionField + "," + deletedField);
 			sb.append(sb2);
-			sb.append("," + dialect.getCurrentTimestampSQLFunctionName() + ",?");
+			sb.append("," + dialect.getCurrentTimestampSQLFunctionName() + ",?,?");
 			sb.append(")");
 			ps = conn.prepareStatement(sb.toString());
 			int addFrequency = 0;
 			for (RowLineSet addLine : addLines) {
 				Object[] values = addLine.getValues();
-				Object[] lValues = new Object[fieldNames.length + 2];
+				Object[] lValues = new Object[fieldNames.length + 3];
 				FieldTypes.getType(tableName, dbProperties.getPrimaryField(), fieldTypes[primaryFieldIndex.intValue()]).nullSafeSet(getDialect(), ps,
 						1, values[primaryFieldIndex.intValue()]);
 				lValues[0] = values[primaryFieldIndex.intValue()];
@@ -410,6 +422,9 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 				FieldTypes.getType(tableName, dbProperties.getVersionField(), fieldTypes[versionFieldIndex.intValue()]).nullSafeSet(getDialect(), ps,
 						fieldNames.length + 2, 1);
 				lValues[fieldNames.length + 1] = 1;
+				FieldTypes.getType(tableName, dbProperties.getDeletedField(), fieldTypes[deletedFieldIndex.intValue()]).nullSafeSet(getDialect(), ps,
+						fieldNames.length + 3, false);
+				lValues[fieldNames.length + 2] = false;
 				if (addLines.size() > 1) {
 					addFrequency = JdbcUtils.addBatch(ps, "执行SQL语句:" + sb.toString(), addFrequency);
 				}
@@ -430,13 +445,12 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 	}
 
 	private void rowModify(DbProperties dbProperties, String tableName, String[] fieldNames, int[] fieldTypes, Map<String, Integer> fieldIndexes,
-			List<RowLineSet> modifyLines, boolean[] fieldUseSQLKeyword) throws CommonException {
+			List<RowLineSet> modifyLines) throws CommonException {
 		Integer primaryFieldIndex = fieldIndexes.get(dbProperties.getPrimaryField().toUpperCase());
 		Integer versionFieldIndex = fieldIndexes.get(dbProperties.getVersionField().toUpperCase());
-		String lTableName = dialect.getSQLKeyword(tableName);
-		String primaryField = dialect.getSQLKeyword(dbProperties.getPrimaryField());
-		String versionField = dialect.getSQLKeyword(dbProperties.getVersionField());
-		String updateTimeField = dialect.getSQLKeyword(dbProperties.getUpdateTimeField());
+		String primaryField = dialect.quote(dbProperties.getPrimaryField());
+		String versionField = dialect.quote(dbProperties.getVersionField());
+		String updateTimeField = dialect.quote(dbProperties.getUpdateTimeField());
 		for (RowLineSet modifyLine : modifyLines) {
 			Object[] values = modifyLine.getValues();
 			Object id = values[primaryFieldIndex.intValue()];
@@ -445,7 +459,7 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 				PreparedStatement queryPs = null;
 				ResultSet queryRs = null;
 				try {
-					String sql = "select " + versionField + " from " + getDialect().appendLock(lTableName) + " where " + primaryField + "=?"
+					String sql = "select " + versionField + " from " + getDialect().appendLock(tableName) + " where " + primaryField + "=?"
 							+ getDialect().getForUpdateString();
 					queryPs = conn.prepareStatement(sql);
 					FieldTypes.getType(tableName, dbProperties.getPrimaryField(), fieldTypes[primaryFieldIndex.intValue()]).nullSafeSet(getDialect(),
@@ -475,12 +489,12 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 					if (sb.length() > 0) {
 						sb.append(",");
 					}
-					sb.append(dialect.getSQLKeyword(fieldNames[i], fieldUseSQLKeyword[i]));
+					sb.append(dialect.quote(fieldNames[i]));
 					sb.append("=?");
 				}
 				sb.append("," + updateTimeField + "=" + dialect.getCurrentTimestampSQLFunctionName());
 				sb.append("," + versionField + "=?");
-				String sql = "update " + lTableName + " set " + sb.toString() + " where " + primaryField + "=?";
+				String sql = "update " + tableName + " set " + sb.toString() + " where " + primaryField + "=?";
 				if (version != null) {
 					sql += " and " + versionField + "=?";
 				}
@@ -518,26 +532,25 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 		}
 	}
 
-	private void rowDelete(DbProperties dbProperties, String tableName, String[] fieldNames, int[] fieldTypes, Map<String, Integer> fieldIndexes,
-			RowLineSet[] deleteLines) throws CommonException {
+	private void rowDelete(DbProperties dbProperties, String tableName, String alias, String[] fieldNames, int[] fieldTypes,
+			Map<String, Integer> fieldIndexes, RowLineSet[] deleteLines) throws CommonException {
 		Integer primaryFieldIndex = fieldIndexes.get(dbProperties.getPrimaryField().toUpperCase());
 		Integer versionFieldIndex = fieldIndexes.get(dbProperties.getVersionField().toUpperCase());
 		Integer deletedFieldIndex = fieldIndexes.get(dbProperties.getDeletedField().toUpperCase());
-		String lTableName = dialect.getSQLKeyword(tableName);
-		String primaryField = dialect.getSQLKeyword(dbProperties.getPrimaryField());
-		String updateTimeField = dialect.getSQLKeyword(dbProperties.getUpdateTimeField());
-		String versionField = dialect.getSQLKeyword(dbProperties.getVersionField());
-		String deletedField = dialect.getSQLKeyword(dbProperties.getDeletedField());
+		String primaryField = dialect.quote(dbProperties.getPrimaryField());
+		String updateTimeField = dialect.quote(dbProperties.getUpdateTimeField());
+		String versionField = dialect.quote(dbProperties.getVersionField());
+		String deletedField = dialect.quote(dbProperties.getDeletedField());
 		for (RowLineSet deleteLine : deleteLines) {
 			Object[] values = deleteLine.getValues();
 			Object id = values[primaryFieldIndex.intValue()];
-			if (hasRelationDatas(tableName, id)) {
+			if (hasRelationDatas(tableName, alias, id)) {
 				Long version = (Long) ReflectUtils.convertValue(ClassType.Long, values[versionFieldIndex]);
 				if (version != null) {
 					PreparedStatement queryPs = null;
 					ResultSet queryRs = null;
 					try {
-						String sql = "select " + versionField + " from " + getDialect().appendLock(lTableName) + " where " + primaryField + "=?"
+						String sql = "select " + versionField + " from " + getDialect().appendLock(tableName) + " where " + primaryField + "=?"
 								+ getDialect().getForUpdateString();
 						queryPs = conn.prepareStatement(sql);
 						FieldTypes.getType(tableName, dbProperties.getPrimaryField(), fieldTypes[primaryFieldIndex.intValue()])
@@ -563,7 +576,7 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 				}
 				PreparedStatement updatePs = null;
 				try {
-					String strUpdateSQL = "update " + lTableName + " set " + deletedField + "=?," + versionField + "=?," + updateTimeField + "="
+					String strUpdateSQL = "update " + tableName + " set " + deletedField + "=?," + versionField + "=?," + updateTimeField + "="
 							+ dialect.getCurrentTimestampSQLFunctionName() + " where " + primaryField + "=?";
 					if (version != null) {
 						strUpdateSQL += " and " + versionField + "=?";
@@ -600,7 +613,7 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 			else {
 				PreparedStatement deletePs = null;
 				try {
-					String strDeleteSQL = "delete from " + lTableName + " where " + primaryField + "=?";
+					String strDeleteSQL = "delete from " + tableName + " where " + primaryField + "=?";
 					deletePs = conn.prepareStatement(strDeleteSQL);
 					FieldTypes.getType(tableName, dbProperties.getPrimaryField(), fieldTypes[primaryFieldIndex.intValue()]).nullSafeSet(getDialect(),
 							deletePs, 1, id);
@@ -620,29 +633,29 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 	}
 
 	@Override
-	public void delete(String tableName, Object primaryValue) throws CommonException {
+	public void delete(String name, Object primaryValue) throws CommonException {
 		DbProperties dbProperties = SpringContext.getBean(DbProperties.class);
-		delete(tableName, dbProperties.getPrimaryField() + "=?", new Object[] { primaryValue });
+		delete(name, dbProperties.getPrimaryField() + "=?", new Object[] { primaryValue });
 	}
 
 	@Override
-	public void delete(String tableName, String condition, Object[] params) throws CommonException {
-		checkTableName(tableName);
+	public void delete(String name, String condition, Object[] params) throws CommonException {
+		checkName(name);
 		DbProperties dbProperties = SpringContext.getBean(DbProperties.class);
-		TableMeta tableMeta = DbUtils.getDbMetaModel().getTable(tableName);
+		TableMeta tableMeta = DbUtils.getDbMetaModel().getTable(name);
 		TableObjectStruct tableStruct = DbUtils.getDbStruct().getTableStruct(dbProperties, tableMeta);
-		String name = tableMeta.getName();
-		String lTableName = dialect.getSQLKeyword(name);
-		String primaryField = dialect.getSQLKeyword(dbProperties.getPrimaryField());
-		String deletedField = dialect.getSQLKeyword(dbProperties.getDeletedField());
-		String versionField = dialect.getSQLKeyword(dbProperties.getVersionField());
-		String updateTimeField = dialect.getSQLKeyword(dbProperties.getUpdateTimeField());
+		String tableName = tableMeta.getName();
+		String alias = tableMeta.getAlias();
+		String primaryField = dialect.quote(dbProperties.getPrimaryField());
+		String deletedField = dialect.quote(dbProperties.getDeletedField());
+		String versionField = dialect.quote(dbProperties.getVersionField());
+		String updateTimeField = dialect.quote(dbProperties.getUpdateTimeField());
 		int primaryFieldType = tableStruct.getField(dbProperties.getPrimaryField()).getJdbcType();
 		int deleteFieldType = tableStruct.getField(dbProperties.getDeletedField()).getJdbcType();
 		int versionFieldType = tableStruct.getField(dbProperties.getVersionField()).getJdbcType();
 		StringBuffer sb = new StringBuffer();
 		sb.append("select " + primaryField + "," + deletedField + "," + versionField + "," + updateTimeField + " from "
-				+ getDialect().appendLock(lTableName));
+				+ getDialect().appendLock(tableName));
 		boolean isParams = false;
 		if (StringUtils.isNotBlank(condition)) {
 			sb.append(" where " + condition);
@@ -669,10 +682,10 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 				Long version = (Long) ReflectUtils.convertValue(ClassType.Long, FieldTypes
 						.getType(tableName, dbProperties.getVersionField(), versionFieldType).nullSafeGet(rs, dbProperties.getVersionField()));
 				if (!deleted) {
-					if (hasRelationDatas(tableName, id)) {
+					if (hasRelationDatas(tableName, alias, id)) {
 						PreparedStatement updatePs = null;
 						try {
-							String strUpdateSQL = "update " + lTableName + " set " + deletedField + "=?," + versionField + "=?," + updateTimeField
+							String strUpdateSQL = "update " + tableName + " set " + deletedField + "=?," + versionField + "=?," + updateTimeField
 									+ "=" + dialect.getCurrentTimestampSQLFunctionName() + " where " + primaryField + "=?";
 							if (version != null) {
 								strUpdateSQL += " and " + versionField + "=?";
@@ -704,7 +717,7 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 					else {
 						PreparedStatement deletePs = null;
 						try {
-							String strDeleteSQL = "delete from " + lTableName + " where " + primaryField + "=?";
+							String strDeleteSQL = "delete from " + tableName + " where " + primaryField + "=?";
 							deletePs = conn.prepareStatement(strDeleteSQL);
 							FieldTypes.getType(tableName, dbProperties.getPrimaryField(), primaryFieldType).nullSafeSet(getDialect(), deletePs, 1,
 									id);
@@ -729,8 +742,8 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 			JdbcUtils.closeStatement(ps);
 		}
 		if (tableMeta.isUseCache()) {
-			logger.debug("清除数据库缓存'" + name + "'");
-			cacheManager.removeCache(DataConstants.CAFFEINE_SELECT + "_" + name.toUpperCase());
+			logger.debug("清除数据库缓存'" + tableName + "'");
+			cacheManager.removeCache(DataConstants.CAFFEINE_SELECT + "_" + tableName.toUpperCase());
 		}
 	}
 
@@ -743,23 +756,20 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 		}
 	}
 
-	private void checkTableName(String tableName) throws CommonException {
-		if (StringUtils.isBlank(tableName)) {
+	private void checkName(String name) throws CommonException {
+		if (StringUtils.isBlank(name)) {
 			throw new CommonException("表名为空");
 		}
 	}
 
-	private boolean hasRelationDatas(String tableName, Object id) throws CommonException {
-		TableMeta table = DbUtils.getDbMetaModel().getTable(tableName);
-		String name = table.getName();
-		String alias = table.getAlias();
+	private boolean hasRelationDatas(String tableName, String alias, Object id) throws CommonException {
 		TableMeta[] tables = DbUtils.getDbMetaModel().getTables();
 		boolean hasData = false;
 		for (TableMeta tableMeta : tables) {
-			if (!tableMeta.getName().equals(name)) {
+			if (!tableMeta.getName().equals(tableName)) {
 				if (tableMeta.getReferenceFieldInfos().size() > 0) {
 					List<ReferenceFieldInfo> referenceFieldInfos = tableMeta.getReferenceFieldInfos().stream()
-							.filter(p -> p.getReferenceTableName().equalsIgnoreCase(name)
+							.filter(p -> p.getReferenceTableName().equalsIgnoreCase(tableName)
 									|| (StringUtils.isNotBlank(alias) && p.getReferenceTableName().equalsIgnoreCase(alias)))
 							.collect(Collectors.toList());
 					if (referenceFieldInfos.size() > 0) {
@@ -887,6 +897,9 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 	@Override
 	public Object save(Object bean) throws CommonException {
 		if (null != bean) {
+			if (bean instanceof DataTable) {
+				throw new CommonException("调用方法错误");
+			}
 			AnnotatedTableMeta tableMeta = DbUtils.getDbMetaModel().getTableByBean(bean.getClass());
 			DataTable dt = create(tableMeta.getName());
 			dt.insert();
@@ -917,6 +930,9 @@ public class DalContextImpl extends AbstractDalContextImpl implements DalContext
 	@Override
 	public void update(Object bean) throws CommonException {
 		if (null != bean) {
+			if (bean instanceof DataTable) {
+				throw new CommonException("调用方法错误");
+			}
 			AnnotatedTableMeta tableMeta = DbUtils.getDbMetaModel().getTableByBean(bean.getClass());
 			Object primaryValue = ReflectUtils.getFieldValue(bean, tableMeta.getPrimaryField().getClassFieldName());
 			if (null == primaryValue) {

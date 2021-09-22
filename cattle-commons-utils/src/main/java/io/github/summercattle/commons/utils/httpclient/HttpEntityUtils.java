@@ -55,7 +55,7 @@ import org.slf4j.LoggerFactory;
 
 import io.github.summercattle.commons.exception.CommonException;
 import io.github.summercattle.commons.utils.auxiliary.HttpUtils;
-import io.github.summercattle.commons.utils.auxiliary.SslUtils;
+import io.github.summercattle.commons.utils.auxiliary.SSLUtils;
 import io.github.summercattle.commons.utils.exception.ExceptionWrapUtils;
 import io.github.summercattle.commons.utils.reflect.ReflectUtils;
 
@@ -99,13 +99,13 @@ public class HttpEntityUtils {
 		if (HttpUtils.isSSL(url)) {
 			KeyStore keyStore = null;
 			if (StringUtils.isNotBlank(keystoreURL)) {
-				keyStore = SslUtils.createKeyStore(keystoreURL, keystorePassword);
+				keyStore = SSLUtils.createKeyStore(keystoreURL, keystorePassword);
 			}
 			KeyStore trustStore = null;
 			if (StringUtils.isNotBlank(truststoreURL)) {
-				trustStore = SslUtils.createKeyStore(truststoreURL, truststorePassword);
+				trustStore = SSLUtils.createKeyStore(truststoreURL, truststorePassword);
 			}
-			sslContext = SslUtils.createSSLContext(keyStore, keystorePassword, keyPassword, trustStore);
+			sslContext = SSLUtils.createSSLContext(keyStore, StringUtils.isNotBlank(keyPassword) ? keyPassword : keystorePassword, trustStore);
 		}
 		CloseableHttpClient httpClient = sslContext != null ? HttpClients.custom().setSSLContext(sslContext).build() : HttpClients.createDefault();
 		CloseableHttpResponse response = null;

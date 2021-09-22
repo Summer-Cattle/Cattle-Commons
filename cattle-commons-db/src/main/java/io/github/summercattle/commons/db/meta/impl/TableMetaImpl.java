@@ -39,8 +39,6 @@ public abstract class TableMetaImpl implements TableMeta {
 
 	protected boolean primaryKeyUseNumber;
 
-	protected String primaryKeyName;
-
 	protected final List<FieldMeta> fields = new Vector<FieldMeta>();
 
 	protected final List<IndexMeta> indexes = new Vector<IndexMeta>();
@@ -70,11 +68,6 @@ public abstract class TableMetaImpl implements TableMeta {
 	@Override
 	public boolean isPrimaryKeyUseNumber() {
 		return primaryKeyUseNumber;
-	}
-
-	@Override
-	public String getPrimaryKeyName() {
-		return primaryKeyName;
 	}
 
 	@Override
@@ -113,15 +106,8 @@ public abstract class TableMetaImpl implements TableMeta {
 		return found;
 	}
 
-	protected boolean hasIndexName(String name) {
-		boolean found = false;
-		for (IndexMeta index : indexes) {
-			if (index.getName().equalsIgnoreCase(name)) {
-				found = true;
-				break;
-			}
-		}
-		return found;
+	protected boolean hasIndexHash(String hash) {
+		return indexes.stream().anyMatch(p -> p.toString().equals(hash));
 	}
 
 	protected boolean checkFieldName(DbProperties dbProperties, String fieldName) {

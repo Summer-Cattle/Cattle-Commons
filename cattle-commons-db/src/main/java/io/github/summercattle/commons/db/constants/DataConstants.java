@@ -22,7 +22,7 @@ public class DataConstants {
 	public static final String CAFFEINE_TABLE_STRUCT = "TableStruct";
 
 	public static final String CAFFEINE_VIEW_STRUCT = "ViewStruct";
-	
+
 	public static final String CAFFEINE_SELECT = "Select";
 
 	public static final String SEQUENCE_TABLE_NAME = "E_SEQUENCE";
@@ -33,5 +33,9 @@ public class DataConstants {
 
 	public static final String PROPERTY_PREFIX = "cattle.db";
 
-	public static final String PROPERTY_PREFIX_DRUID = PROPERTY_PREFIX + ".druid";
+	public static final String SEQUENCE_PREFIX = "CATTLE_";
+
+	public static final String PRIMARY_KEY_PREFIX = "PK_";
+
+	public static final String INDEX_KEY_PREFIX = "IDX_";
 }

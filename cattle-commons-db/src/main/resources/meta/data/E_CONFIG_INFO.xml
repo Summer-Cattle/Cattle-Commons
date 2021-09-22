@@ -6,6 +6,6 @@
 		<Field name="CONFIG_VALUE" type="NClob" comment="配置值"/>
     </Fields>
     <Indexes>
-        <Index name="IDX_E_CONFIG_INFO" unique="true" fields="CONFIG_NAME"/>
+        <Index unique="true" fields="CONFIG_NAME"/>
     </Indexes>
 </MetaData>

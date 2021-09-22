@@ -21,12 +21,6 @@ package io.github.summercattle.commons.db.meta;
 public interface IndexMeta {
 
 	/**
-	 * 索引名称
-	 * @return 索引名称
-	 */
-	String getName();
-
-	/**
 	 * 是否唯一索引
 	 * @return 是否唯一索引
 	 */
@@ -36,5 +30,5 @@ public interface IndexMeta {
 	 * 索引字段信息
 	 * @return 索引字段信息
 	 */
-	String getFields();
+	IndexFieldMeta[] getFields();
 }

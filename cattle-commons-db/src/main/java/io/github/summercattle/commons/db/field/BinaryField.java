@@ -15,10 +15,6 @@
  */
 package io.github.summercattle.commons.db.field;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -57,8 +53,7 @@ public class BinaryField extends AbstractField {
 	@Override
 	public Object get(ResultSet rs, String name) throws CommonException {
 		try {
-			InputStream inputStream = rs.getBinaryStream(name);
-			return get(inputStream);
+			return rs.getBytes(name);
 		}
 		catch (SQLException e) {
 			throw ExceptionWrapUtils.wrap(e);
@@ -68,30 +63,9 @@ public class BinaryField extends AbstractField {
 	@Override
 	public Object get(ResultSet rs, int columnIndex) throws CommonException {
 		try {
-			InputStream inputStream = rs.getBinaryStream(columnIndex);
-			return get(inputStream);
+			return rs.getBytes(columnIndex);
 		}
 		catch (SQLException e) {
-			throw ExceptionWrapUtils.wrap(e);
-		}
-	}
-
-	private Object get(InputStream inputStream) throws CommonException {
-		if (inputStream == null) {
-			return null;
-		}
-		try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream(2048)) {
-			byte[] buffer = new byte[2048];
-			while (true) {
-				int amountRead = inputStream.read(buffer);
-				if (amountRead == -1) {
-					break;
-				}
-				outputStream.write(buffer, 0, amountRead);
-			}
-			return outputStream.toByteArray();
-		}
-		catch (IOException e) {
 			throw ExceptionWrapUtils.wrap(e);
 		}
 	}
@@ -100,7 +74,7 @@ public class BinaryField extends AbstractField {
 	public void set(Dialect dialect, PreparedStatement ps, int index, Object value) throws CommonException {
 		try {
 			byte[] internalValue = (byte[]) value;
-			ps.setBinaryStream(index, new ByteArrayInputStream(internalValue), internalValue.length);
+			ps.setBytes(index, internalValue);
 		}
 		catch (SQLException e) {
 			throw ExceptionWrapUtils.wrap(e);

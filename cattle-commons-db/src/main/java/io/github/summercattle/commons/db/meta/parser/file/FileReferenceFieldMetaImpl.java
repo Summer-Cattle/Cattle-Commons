@@ -28,7 +28,7 @@ public class FileReferenceFieldMetaImpl extends ReferenceFieldMetaImpl implement
 	@Override
 	public void from(String name, Element fieldElement) throws CommonException {
 		this.name = name;
-		comment = fieldElement.attributeValue("comment");
+		comment = fieldElement.attributeValue("comment", "");
 		String strAllowNull = fieldElement.attributeValue("allowNull");
 		allowNull = StringUtils.isNotBlank(strAllowNull) ? BooleanUtils.toBoolean(strAllowNull) : true;
 		referenceTableName = fieldElement.attributeValue("referenceTableName");

@@ -15,8 +15,6 @@
  */
 package io.github.summercattle.commons.db.handle;
 
-import java.sql.Connection;
-
 import io.github.summercattle.commons.db.configure.DbProperties;
 import io.github.summercattle.commons.db.meta.TableMeta;
 import io.github.summercattle.commons.db.struct.TableObjectStruct;
@@ -29,12 +27,20 @@ import io.github.summercattle.commons.exception.CommonException;
 public interface DbStruct {
 
 	/**
+	 * 表是否存在
+	 * @param name 表名
+	 * @return 表是否存在
+	 * @throws CommonException 异常
+	 */
+	boolean existTable(String name) throws CommonException;
+
+	/**
 	 * 得到表结构
-	 * @param tableName 表名
+	 * @param name 表名
 	 * @return 表结构
 	 * @throws CommonException 异常
 	 */
-	TableObjectStruct getTableStruct(String tableName) throws CommonException;
+	TableObjectStruct getTableStruct(String name) throws CommonException;
 
 	/**
 	 * 得到表结构
@@ -46,34 +52,25 @@ public interface DbStruct {
 	TableObjectStruct getTableStruct(DbProperties dbProperties, TableMeta tableMeta) throws CommonException;
 
 	/**
-	 * 检查表与索引
-	 * @param dbProperties 数据配置
-	 * @param conn 数据库连接
-	 * @throws CommonException 异常
-	 */
-	void checkTablesAndIndexes(DbProperties dbProperties, Connection conn) throws CommonException;
-
-	/**
-	 * 表是否存在
-	 * @param tableName 表名
-	 * @return 表是否存在
-	 * @throws CommonException 异常
-	 */
-	boolean existTable(String tableName) throws CommonException;
-
-	/**
 	 * 视图是否存在
-	 * @param viewName 视图名
+	 * @param name 视图名
 	 * @return 视图是否存在
 	 * @throws CommonException 异常
 	 */
-	boolean existView(String viewName) throws CommonException;
+	boolean existView(String name) throws CommonException;
 
 	/**
 	 * 得到视图结构
-	 * @param viewName 视图名称
+	 * @param name 视图名称
 	 * @return 视图结构
 	 * @throws CommonException 异常
 	 */
-	ViewObjectStruct getViewStruct(String viewName) throws CommonException;
+	ViewObjectStruct getViewStruct(String name) throws CommonException;
+
+	/**
+	 * 检查表、索引等
+	 * @param dbProperties 数据配置
+	 * @throws CommonException 异常
+	 */
+	void check(DbProperties dbProperties) throws CommonException;
 }

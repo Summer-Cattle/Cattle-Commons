@@ -25,7 +25,12 @@ public class ArrayUtils {
 					sb.append(",");
 				}
 				if (null != array[i]) {
-					sb.append(array[i].toString());
+					if (array[i] instanceof byte[]) {
+						sb.append("[二进制数据]");
+					}
+					else {
+						sb.append(array[i].toString());
+					}
 				}
 				else {
 					sb.append("NULL");

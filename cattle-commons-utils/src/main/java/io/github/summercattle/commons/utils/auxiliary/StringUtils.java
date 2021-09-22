@@ -15,6 +15,9 @@
  */
 package io.github.summercattle.commons.utils.auxiliary;
 
+import java.math.BigInteger;
+
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.text.RandomStringGenerator;
 
 public class StringUtils {
@@ -109,5 +112,11 @@ public class StringUtils {
 		}
 		// 如果p匹配完了，说明匹配成功
 		return idxp == p.length();
+	}
+
+	public static String getHashName(String str) {
+		byte[] bytes = DigestUtils.md5(str);
+		BigInteger bigInteger = new BigInteger(1, bytes);
+		return bigInteger.toString(35).toUpperCase();
 	}
 }

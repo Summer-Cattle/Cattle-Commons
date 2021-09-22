@@ -15,10 +15,14 @@
  */
 package io.github.summercattle.commons.db.meta.parser.file;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.dom4j.Element;
 
+import io.github.summercattle.commons.db.meta.IndexFieldMeta;
 import io.github.summercattle.commons.db.meta.file.FileIndexMeta;
 import io.github.summercattle.commons.db.meta.impl.IndexMetaImpl;
 import io.github.summercattle.commons.exception.CommonException;
@@ -27,41 +31,35 @@ public class FileIndexMetaImpl extends IndexMetaImpl implements FileIndexMeta {
 
 	@Override
 	public void from(Element indexElement) throws CommonException {
-		name = indexElement.attributeValue("name").toUpperCase();
 		String lFields = indexElement.attributeValue("fields");
+		String strUnique = indexElement.attributeValue("unique");
+		unique = BooleanUtils.toBoolean(strUnique);
 		if (StringUtils.isNotBlank(lFields)) {
-			String kField = "";
 			String[] vFields = lFields.split(",");
+			List<IndexFieldMeta> indexFieldMetas = new ArrayList<IndexFieldMeta>(vFields.length);
 			for (int i = 0; i < vFields.length; i++) {
-				if (i > 0) {
-					kField += ",";
-				}
 				String[] indexFields = vFields[i].split(":");
 				if (indexFields.length == 0 || StringUtils.isBlank(indexFields[0])) {
-					throw new CommonException("索引'" + name + "'的字段为空");
+					throw new CommonException("索引字段名为空");
 				}
-				kField += indexFields[0].trim().toUpperCase();
+				String field = indexFields[0].trim().toUpperCase();
+				String order = "asc";
 				if (indexFields.length == 2 && StringUtils.isNotBlank(indexFields[1])) {
 					String ascAndDesc = indexFields[1].trim();
 					if (ascAndDesc.equalsIgnoreCase("asc") || ascAndDesc.equalsIgnoreCase("desc")) {
-						kField += ":" + ascAndDesc.toLowerCase();
+						order = ascAndDesc.toLowerCase();
 					}
 					else {
 						throw new CommonException("无效的升降序关键字:" + ascAndDesc);
 					}
 				}
-				else {
-					kField += ":asc";
+				if (!indexFieldMetas.stream().anyMatch(p -> p.getField().equals(field.trim().toUpperCase()))) {
+					indexFieldMetas.add(new IndexFieldMeta(field, order));
 				}
 			}
-			fields = kField;
+			fields = indexFieldMetas.toArray(new IndexFieldMeta[0]);
 		}
-		String strUnique = indexElement.attributeValue("unique");
-		unique = BooleanUtils.toBoolean(strUnique);
-		if (StringUtils.isBlank(name)) {
-			throw new CommonException("数据表索引名称为空");
-		}
-		if (StringUtils.isBlank(fields)) {
+		if (null == fields || fields.length == 0) {
 			throw new CommonException("数据表索引字段信息为空");
 		}
 	}

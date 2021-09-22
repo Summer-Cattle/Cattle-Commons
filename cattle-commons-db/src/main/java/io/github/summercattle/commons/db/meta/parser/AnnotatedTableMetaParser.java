@@ -19,6 +19,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.annotation.AnnotationUtils;
 
 import io.github.summercattle.commons.db.annotation.Table;
 import io.github.summercattle.commons.db.configure.DbProperties;
@@ -41,6 +42,7 @@ public class AnnotatedTableMetaParser implements TableMetaParser {
 		for (Class< ? > tableClazz : tableClasses) {
 			logger.debug("处理数据表注解类:{}", tableClazz.getName());
 			Table table = tableClazz.getAnnotation(Table.class);
+			table = AnnotationUtils.getAnnotation(table, Table.class);
 			if (TableMetaUtils.allowTable(table.propertyNames(), table.havingValue(), table.matchIfMissing())) {
 				AnnotatedTableMeta annotatedTable = new AnnotatedTableMetaImpl();
 				annotatedTable.from(dbProperties, table, tableClazz);

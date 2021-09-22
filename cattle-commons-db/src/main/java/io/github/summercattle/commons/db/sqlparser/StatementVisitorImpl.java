@@ -21,6 +21,8 @@ import net.sf.jsqlparser.statement.CreateFunctionalStatement;
 import net.sf.jsqlparser.statement.DeclareStatement;
 import net.sf.jsqlparser.statement.DescribeStatement;
 import net.sf.jsqlparser.statement.ExplainStatement;
+import net.sf.jsqlparser.statement.IfElseStatement;
+import net.sf.jsqlparser.statement.PurgeStatement;
 import net.sf.jsqlparser.statement.ResetStatement;
 import net.sf.jsqlparser.statement.RollbackStatement;
 import net.sf.jsqlparser.statement.SavepointStatement;
@@ -32,6 +34,8 @@ import net.sf.jsqlparser.statement.Statements;
 import net.sf.jsqlparser.statement.UseStatement;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterSession;
+import net.sf.jsqlparser.statement.alter.AlterSystemStatement;
+import net.sf.jsqlparser.statement.alter.RenameTableStatement;
 import net.sf.jsqlparser.statement.alter.sequence.AlterSequence;
 import net.sf.jsqlparser.statement.comment.Comment;
 import net.sf.jsqlparser.statement.create.index.CreateIndex;
@@ -280,5 +284,29 @@ public class StatementVisitorImpl implements StatementVisitor {
 	public void visit(AlterSession alterSession) {
 		// TODO Auto-generated method stub
 
+	}
+
+	@Override
+	public void visit(IfElseStatement aThis) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void visit(RenameTableStatement renameTableStatement) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void visit(PurgeStatement purgeStatement) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void visit(AlterSystemStatement alterSystemStatement) {
+		// TODO Auto-generated method stub
+		
 	}
 }

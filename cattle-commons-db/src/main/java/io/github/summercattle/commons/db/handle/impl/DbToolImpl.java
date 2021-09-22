@@ -15,13 +15,11 @@
  */
 package io.github.summercattle.commons.db.handle.impl;
 
-import java.lang.reflect.Method;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Types;
 import java.util.Date;
 
@@ -33,7 +31,6 @@ import org.apache.commons.lang3.StringUtils;
 import com.google.inject.Inject;
 
 import io.github.summercattle.commons.db.constants.DataConstants;
-import io.github.summercattle.commons.db.constants.DatabaseType;
 import io.github.summercattle.commons.db.constants.TransactionLevel;
 import io.github.summercattle.commons.db.dialect.Dialect;
 import io.github.summercattle.commons.db.handle.DbSecurityKey;
@@ -46,7 +43,6 @@ import io.github.summercattle.commons.utils.auxiliary.ArrayUtils;
 import io.github.summercattle.commons.utils.auxiliary.CompressUtils;
 import io.github.summercattle.commons.utils.auxiliary.ObjectUtils;
 import io.github.summercattle.commons.utils.exception.ExceptionWrapUtils;
-import io.github.summercattle.commons.utils.reflect.ReflectUtils;
 import io.github.summercattle.commons.utils.security.CommonEncryptUtils;
 import io.github.summercattle.commons.utils.security.constants.CommonEncryptType;
 import io.github.summercattle.commons.utils.security.constants.PaddingType;
@@ -61,12 +57,12 @@ public class DbToolImpl implements DbTool {
 
 	@Override
 	public Date getCurrentDate() throws CommonException {
-		return dbTransaction.doSimpleDal(context -> {
-			if (context.getDialect().supportsCurrentTimestampSelection()) {
-				return getCurrentTimestampSelect(context.getConnection(), context.getDialect().getCurrentTimestampSelectString());
+		return dbTransaction.doSimpleDal(ctx -> {
+			if (ctx.getDialect().supportsCurrentTimestampSelection()) {
+				return getCurrentTimestampSelect(ctx.getConnection(), ctx.getDialect().getCurrentTimestampSelectString());
 			}
-			if (context.getDialect().isCurrentTimestampSelectStringCallable()) {
-				return getCurrentTimestampSelectCallable(context.getConnection(), context.getDialect().getCurrentTimestampCallString());
+			if (ctx.getDialect().isCurrentTimestampSelectStringCallable()) {
+				return getCurrentTimestampSelectCallable(ctx.getConnection(), ctx.getDialect().getCurrentTimestampSelectString());
 			}
 			return new Date();
 		});
@@ -114,16 +110,14 @@ public class DbToolImpl implements DbTool {
 		return dbTransaction.doSimpleDal(TransactionLevel.REQUIRES_NEW, context -> {
 			String lSequenceName = sequenceName.toUpperCase();
 			if (context.getDialect().supportsSequences()) {
+				lSequenceName = DataConstants.SEQUENCE_PREFIX + lSequenceName;
 				if (!isSequence(context.getDialect(), context.getConnection(), lSequenceName)) {
-					String strSQL = context.getDialect().getCreateSequenceString(lSequenceName);
+					String strSQL = context.getDialect().getCreateSequenceCommand(lSequenceName);
 					JdbcUtils.executeSQL(context.getConnection(), strSQL);
 				}
 				return getSequenceNextValue(context.getDialect(), context.getConnection(), lSequenceName);
 			}
 			else {
-				if (!context.getDialect().existTable(context.getConnection(), DataConstants.SEQUENCE_TABLE_NAME)) {
-					throw new CommonException("自定义序列表不存在");
-				}
 				return getCustomNextVal(context.getDialect(), context.getConnection(), lSequenceName);
 			}
 		});
@@ -134,7 +128,7 @@ public class DbToolImpl implements DbTool {
 		ResultSet rs = null;
 		try {
 			boolean hasSequence = false;
-			String strSQL = dialect.getQuerySequencesString();
+			String strSQL = dialect.getQuerySequencesCommand();
 			ps = conn.prepareStatement(strSQL);
 			rs = JdbcUtils.executeQuery(ps, "执行SQL语句:" + strSQL);
 			while (rs.next()) {
@@ -228,71 +222,6 @@ public class DbToolImpl implements DbTool {
 		}
 		while (rows == 0);
 		return value + 1;
-	}
-
-	@Override
-	public boolean validConnection() throws CommonException {
-		return dbTransaction.doSimpleDal(context -> {
-			if (context.getDialect().getType() == DatabaseType.MySQL) {
-				Class< ? > clazz = null;
-				try {
-					clazz = Class.forName("com.mysql.jdbc.MySQLConnection");
-				}
-				catch (ClassNotFoundException e2) {
-					try {
-						clazz = Class.forName("com.mysql.cj.jdbc.ConnectionImpl");
-					}
-					catch (ClassNotFoundException e1) {
-					}
-				}
-				if (null != clazz) {
-					try {
-						Method pingMethod = ReflectUtils.getMethod(clazz, "pingInternal", boolean.class, int.class);
-						if (null != pingMethod) {
-							if (clazz.isAssignableFrom(context.getConnection().getClass())) {
-								ReflectUtils.invokeObjectMethod(pingMethod, context.getConnection(), new Object[] { true, 1000 * 1000 });
-								return true;
-							}
-						}
-					}
-					catch (CommonException e3) {
-					}
-				}
-			}
-			String validateQuery = context.getDialect().getValidateQuery();
-			if (StringUtils.isBlank(validateQuery)) {
-				return true;
-			}
-			try {
-				if (context.getConnection().isClosed()) {
-					return false;
-				}
-			}
-			catch (SQLException e) {
-				throw ExceptionWrapUtils.wrap(e);
-			}
-			Statement st = null;
-			ResultSet rs = null;
-			try {
-				st = context.getConnection().createStatement();
-				if (context.getDialect().getType() == DatabaseType.SQLServer) {
-					st = context.getConnection().createStatement();
-					st.execute(validateQuery);
-				}
-				else {
-					st.setQueryTimeout(1);
-					rs = st.executeQuery(validateQuery);
-				}
-				return true;
-			}
-			catch (SQLException e) {
-				throw ExceptionWrapUtils.wrap(e);
-			}
-			finally {
-				JdbcUtils.closeResultSet(rs);
-				JdbcUtils.closeStatement(st);
-			}
-		});
 	}
 
 	@Override

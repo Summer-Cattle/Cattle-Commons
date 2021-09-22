@@ -19,6 +19,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.PropertySource;
 
 import io.github.summercattle.commons.utils.cache.CacheProperties;
 import io.github.summercattle.commons.utils.guice.annotation.EnableGuiceModules;
@@ -30,8 +31,9 @@ import io.github.summercattle.commons.utils.spring.SpringResourceLoader;
 
 @Configuration(proxyBeanMethods = false)
 @ComponentScan(basePackageClasses = { SpringContext.class, SpringResourceLoader.class, RestTemplateUtils.class, RedisTemplateUtils.class })
-@Import({ RedisAutoConfiguration.class })
+@Import({ RedisAutoConfiguration.class, RestTemplateAutoConfiguration.class })
 @EnableConfigurationProperties(CacheProperties.class)
+@PropertySource("classpath:/io/github/summercattle/commons/utils/configure/utils.properties")
 @EnableGuiceModules
 public class UtilsAutoConfiguration {
 }

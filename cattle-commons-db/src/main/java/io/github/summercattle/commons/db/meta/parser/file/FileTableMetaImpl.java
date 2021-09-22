@@ -24,6 +24,7 @@ import org.dom4j.Element;
 import io.github.summercattle.commons.db.configure.DbProperties;
 import io.github.summercattle.commons.db.meta.FieldMeta;
 import io.github.summercattle.commons.db.meta.FieldMetaMode;
+import io.github.summercattle.commons.db.meta.IndexFieldMeta;
 import io.github.summercattle.commons.db.meta.TableMetaSource;
 import io.github.summercattle.commons.db.meta.file.FileFixedFieldMeta;
 import io.github.summercattle.commons.db.meta.file.FileIndexMeta;
@@ -47,13 +48,8 @@ public class FileTableMetaImpl extends TableMetaImpl implements FileTableMeta {
 			alias = null;
 		}
 		useCache = BooleanUtils.toBoolean(tableElement.attributeValue("useCache"));
-		comment = tableElement.attributeValue("comment");
+		comment = tableElement.attributeValue("comment", "");
 		primaryKeyUseNumber = BooleanUtils.toBoolean(tableElement.attributeValue("primaryKeyUseNumber"));
-		primaryKeyName = tableElement.attributeValue("primaryKeyName");
-		if (StringUtils.isBlank(primaryKeyName)) {
-			primaryKeyName = "PK_" + name;
-		}
-		primaryKeyName = primaryKeyName.toUpperCase();
 		Element fieldsElement = tableElement.element("Fields");
 		if (fieldsElement != null) {
 			List<Element> fieldElements = fieldsElement.elements("Field");
@@ -97,12 +93,17 @@ public class FileTableMetaImpl extends TableMetaImpl implements FileTableMeta {
 		if (indexesElement != null) {
 			List<Element> indexElements = indexesElement.elements("Index");
 			for (Element indexElement : indexElements) {
-				FileIndexMeta index = new FileIndexMetaImpl();
-				index.from(indexElement);
-				if (hasIndexName(index.getName())) {
-					throw new CommonException("已经存在数据表索引名'" + index.getName() + "'");
+				FileIndexMeta indexMeta = new FileIndexMetaImpl();
+				indexMeta.from(indexElement);
+				for (IndexFieldMeta indexFieldMeta : indexMeta.getFields()) {
+					if (!fields.stream().anyMatch(p -> p.getName().equals(indexFieldMeta.getField()))) {
+						throw new CommonException("表'" + name + "'不存在字段名'" + indexFieldMeta.getField() + "'");
+					}
 				}
-				indexes.add(index);
+				if (hasIndexHash(indexMeta.toString())) {
+					throw new CommonException("已经存在数据表索引名'" + indexMeta.toString() + "'");
+				}
+				indexes.add(indexMeta);
 			}
 		}
 	}

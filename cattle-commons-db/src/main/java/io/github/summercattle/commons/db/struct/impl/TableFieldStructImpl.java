@@ -15,7 +15,6 @@
  */
 package io.github.summercattle.commons.db.struct.impl;
 
-import io.github.summercattle.commons.db.constants.DataType;
 import io.github.summercattle.commons.db.struct.TableFieldStruct;
 
 public class TableFieldStructImpl extends FieldStructImpl implements TableFieldStruct {
@@ -26,9 +25,9 @@ public class TableFieldStructImpl extends FieldStructImpl implements TableFieldS
 
 	private String comment;
 
-	public TableFieldStructImpl(String name, DataType type, int jdbcType, String typeName, boolean nullable, long size, int decimalDigits,
-			String defaultValue, String comment, boolean sqlKeyword) {
-		super(name, type, jdbcType, typeName, size, decimalDigits, sqlKeyword);
+	public TableFieldStructImpl(String name, int jdbcType, String typeName, boolean nullable, long size, int decimalDigits, String defaultValue,
+			String comment) {
+		super(name, jdbcType, typeName, size, decimalDigits);
 		this.nullable = nullable;
 		this.defaultValue = defaultValue;
 		this.comment = comment;

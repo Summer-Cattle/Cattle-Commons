@@ -38,6 +38,8 @@ public class DbProperties {
 
 	private Map<String, String> cacheProps;
 
+	private String storageEngine;
+
 	public String getPrimaryField() {
 		return null != primaryField ? primaryField.toUpperCase() : null;
 	}
@@ -92,5 +94,13 @@ public class DbProperties {
 
 	public void setCacheProps(Map<String, String> cacheProps) {
 		this.cacheProps = cacheProps;
+	}
+
+	public String getStorageEngine() {
+		return storageEngine;
+	}
+
+	public void setStorageEngine(String storageEngine) {
+		this.storageEngine = storageEngine;
 	}
 }

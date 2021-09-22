@@ -39,9 +39,9 @@ public class FileFixedFieldMetaImpl extends FixedFieldMetaImpl implements FileFi
 		}
 		this.name = name;
 		type = EnumUtils.getEnum(DataType.class, strType);
-		comment = fieldElement.attributeValue("comment");
+		comment = fieldElement.attributeValue("comment", "");
 		length = NumberUtils.toInt(fieldElement.attributeValue("length"));
-		precision = NumberUtils.toInt(fieldElement.attributeValue("precision"));
+		scale = NumberUtils.toInt(fieldElement.attributeValue("scale"));
 		defaultValue = fieldElement.attributeValue("default");
 		String strAllowNull = fieldElement.attributeValue("allowNull");
 		allowNull = StringUtils.isNotBlank(strAllowNull) ? BooleanUtils.toBoolean(strAllowNull) : true;
@@ -49,26 +49,37 @@ public class FileFixedFieldMetaImpl extends FixedFieldMetaImpl implements FileFi
 			if (length <= 0) {
 				throw new CommonException("数据表字段在文本类型或数值类型下,长度必须大于0");
 			}
-			if ((type == DataType.String || type == DataType.NString) && precision > 0) {
-				throw new CommonException("数据表字段在文本类型下,精度不能大于0");
+			if ((type == DataType.String || type == DataType.NString) && scale != 0) {
+				throw new CommonException("数据表字段在文本类型下,精度必须为0");
+			}
+			if (type == DataType.Number && scale < 0) {
+				throw new CommonException("数据表字段在数值类型下,精度必须不能小于0");
 			}
 		}
 		else if (type == DataType.Boolean) {
-			if (length > 0) {
-				throw new CommonException("数据表字段长度不能大于0");
+			if (length != 0) {
+				throw new CommonException("数据表字段在布尔值类型下，长度必须为0");
 			}
-			if (precision > 0) {
-				throw new CommonException("数据表字段精度不能大于0");
+			if (scale != 0) {
+				throw new CommonException("数据表字段在布尔值类型下，精度必须为0");
 			}
 			if (StringUtils.isNotBlank(defaultValue)) {
 				defaultValue = BooleanUtils.toBoolean(defaultValue) ? "1" : "0";
+			}
+		}
+		else if (type == DataType.Binary || type == DataType.LongBinary) {
+			if (length < 0) {
+				throw new CommonException("数据表字段在二进制类型下,长度必须不能小于0");
+			}
+			if (scale != 0) {
+				throw new CommonException("数据表字段在二进制类型下，精度必须为0");
 			}
 		}
 		else {
 			if (length > 0) {
 				throw new CommonException("数据表字段长度不能大于0");
 			}
-			if (precision > 0) {
+			if (scale > 0) {
 				throw new CommonException("数据表字段精度不能大于0");
 			}
 		}

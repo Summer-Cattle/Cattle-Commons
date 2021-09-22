@@ -18,13 +18,25 @@ package io.github.summercattle.commons.db.constants;
 public enum DataType {
 
 	/**
+	 * 文本
+	 */
+	String,
+	/**
 	 * Unicode文本
 	 */
 	NString,
 	/**
-	 * 文本
+	 * 长文本
 	 */
-	String,
+	LongString,
+	/**
+	 * 二进制
+	 */
+	Binary,
+	/**
+	 * 长二进制
+	 */
+	LongBinary,
 	/**
 	 * 数值
 	 */
@@ -42,13 +54,13 @@ public enum DataType {
 	 */
 	Timestamp,
 	/**
-	 * Unicode大对象(文本)
-	 */
-	NClob,
-	/**
 	 * 大对象(文本)
 	 */
 	Clob,
+	/**
+	 * Unicode大对象(文本)
+	 */
+	NClob,
 	/**
 	 * 大对象(二进制)
 	 */
@@ -56,5 +68,9 @@ public enum DataType {
 	/**
 	 * 布尔值
 	 */
-	Boolean
+	Boolean,
+	/**
+	 * 双精度浮点
+	 */
+	Double
 }

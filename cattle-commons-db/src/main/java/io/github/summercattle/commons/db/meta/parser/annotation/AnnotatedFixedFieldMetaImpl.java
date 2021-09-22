@@ -38,33 +38,44 @@ public class AnnotatedFixedFieldMetaImpl extends FixedFieldMetaImpl implements A
 		type = field.type();
 		comment = field.comment();
 		length = field.length();
-		precision = field.precision();
+		scale = field.scale();
 		defaultValue = field.defaultValue();
 		allowNull = field.allowNull();
 		if (type == DataType.Number || type == DataType.String || type == DataType.NString) {
 			if (length <= 0) {
 				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段在文本类型或数值类型下,长度必须大于0");
 			}
-			if ((type == DataType.String || type == DataType.NString) && precision > 0) {
-				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段在文本类型下,精度不能大于0");
+			if ((type == DataType.String || type == DataType.NString) && scale != 0) {
+				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段在文本类型下,精度必须为0");
+			}
+			if (type == DataType.Number && scale < 0) {
+				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段在数值类型下,精度必须不能小于0");
 			}
 		}
 		else if (type == DataType.Boolean) {
-			if (length > 0) {
-				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段长度不能大于0");
+			if (length != 0) {
+				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段在布尔值类型下，长度必须为0");
 			}
-			if (precision > 0) {
-				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段精度不能大于0");
+			if (scale != 0) {
+				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段在布尔值类型下，精度必须为0");
 			}
 			if (StringUtils.isNotBlank(defaultValue)) {
 				defaultValue = BooleanUtils.toBoolean(defaultValue) ? "1" : "0";
+			}
+		}
+		else if (type == DataType.Binary || type == DataType.LongBinary) {
+			if (length < 0) {
+				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段在二进制类型下,长度必须不能小于0");
+			}
+			if (scale != 0) {
+				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段在二进制类型下，精度必须为0");
 			}
 		}
 		else {
 			if (length > 0) {
 				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段长度不能大于0");
 			}
-			if (precision > 0) {
+			if (scale > 0) {
 				throw new CommonException("类字段名'" + classFieldName + "'的数据表字段精度不能大于0");
 			}
 		}

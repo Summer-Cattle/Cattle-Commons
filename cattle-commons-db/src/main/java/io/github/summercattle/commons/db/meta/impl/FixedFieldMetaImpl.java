@@ -24,7 +24,7 @@ public class FixedFieldMetaImpl extends FieldMetaImpl implements FixedFieldMeta 
 
 	protected int length;
 
-	protected int precision;
+	protected int scale;
 
 	protected String defaultValue;
 
@@ -39,8 +39,8 @@ public class FixedFieldMetaImpl extends FieldMetaImpl implements FixedFieldMeta 
 	}
 
 	@Override
-	public int getPrecision() {
-		return precision;
+	public int getScale() {
+		return scale;
 	}
 
 	@Override

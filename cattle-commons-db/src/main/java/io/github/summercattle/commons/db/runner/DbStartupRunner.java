@@ -22,8 +22,10 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
 import io.github.summercattle.commons.db.DbUtils;
+import io.github.summercattle.commons.db.configure.DbProperties;
 import io.github.summercattle.commons.db.event.DbStartupEvent;
 import io.github.summercattle.commons.utils.reflect.ClassUtils;
+import io.github.summercattle.commons.utils.spring.SpringContext;
 
 @Component
 public class DbStartupRunner implements ApplicationRunner {
@@ -32,6 +34,10 @@ public class DbStartupRunner implements ApplicationRunner {
 
 	@Override
 	public void run(ApplicationArguments args) throws Exception {
+		DbProperties dbProperties = SpringContext.getBean(DbProperties.class);
+		if (dbProperties.isGenerate()) {
+			DbUtils.getDbStruct().check(dbProperties);
+		}
 		Class<DbStartupEvent>[] classes = ClassUtils.getSubTypesOf(DbStartupEvent.class);
 		for (Class<DbStartupEvent> clazz : classes) {
 			DbStartupEvent startupEvent = ClassUtils.instance(clazz);

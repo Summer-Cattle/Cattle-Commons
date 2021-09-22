@@ -24,10 +24,8 @@ import java.util.Calendar;
 
 import org.apache.commons.lang3.time.DateFormatUtils;
 
-import io.github.summercattle.commons.db.constants.DatabaseType;
 import io.github.summercattle.commons.db.dialect.Dialect;
 import io.github.summercattle.commons.exception.CommonException;
-import io.github.summercattle.commons.utils.auxiliary.DateUtils;
 import io.github.summercattle.commons.utils.exception.ExceptionWrapUtils;
 import io.github.summercattle.commons.utils.reflect.ClassType;
 import io.github.summercattle.commons.utils.reflect.ReflectUtils;
@@ -95,15 +93,15 @@ public class DateField extends AbstractField {
 
 	private Date convertDate(Dialect dialect, Date date) throws CommonException {
 		Date result = date;
-		if (dialect.getType() == DatabaseType.Sybase) {
-			int year = DateUtils.getYear(date);
-			if (year < 1753) {
-				result = new Date(DateUtils.getDate(1753, 1, 1).getTime());
-			}
-			else if (year > 9999) {
-				result = new Date(DateUtils.getDate(9999, 12, 31, 23, 59, 59, 999).getTime());
-			}
-		}
+//		if (dialect.getType() == Database.Sybase) {
+//			int year = DateUtils.getYear(date);
+//			if (year < 1753) {
+//				result = new Date(DateUtils.getDate(1753, 1, 1).getTime());
+//			}
+//			else if (year > 9999) {
+//				result = new Date(DateUtils.getDate(9999, 12, 31, 23, 59, 59, 999).getTime());
+//			}
+//		}
 		return result;
 	}
 

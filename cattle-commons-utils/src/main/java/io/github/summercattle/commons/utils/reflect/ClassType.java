@@ -17,5 +17,5 @@ package io.github.summercattle.commons.utils.reflect;
 
 public enum ClassType {
 
-	Array, Enum, Long, Int, Double, String, Float, Boolean, Date, SqlDate, Timestamp, Time, List, Map, Byte, Char, Short, Object, Class, ClassObject, BigDecimal, BigInteger, Null
+	Array, Enum, Long, Int, Double, String, Boolean, Date, SqlDate, Timestamp, Time, List, Map, Byte, Char, Short, Object, Class, ClassObject, BigDecimal, BigInteger, Null
 }

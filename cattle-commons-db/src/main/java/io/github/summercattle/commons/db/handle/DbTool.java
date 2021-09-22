@@ -40,13 +40,6 @@ public interface DbTool {
 	long getSequenceNextVal(String sequenceName) throws CommonException;
 
 	/**
-	 * 是否有效的数据库连接
-	 * @return 是否有效的数据库连接
-	 * @throws CommonException 异常
-	 */
-	boolean validConnection() throws CommonException;
-
-	/**
 	 * 保存配置
 	 * @param name 配置名
 	 * @param encrypt 是否加密
