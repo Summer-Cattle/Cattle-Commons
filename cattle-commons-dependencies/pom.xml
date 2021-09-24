@@ -2,17 +2,17 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
-		<groupId>io.github.summercattle</groupId>
+		<groupId>com.gitlab.summer-cattle</groupId>
 		<artifactId>cattle-dependencies</artifactId>
-		<version>0.0.1.SP3</version>
+		<version>0.0.1</version>
 		<relativePath/>
 	</parent>
     <artifactId>cattle-commons-dependencies</artifactId>
-	<version>0.0.1.SP2</version>
+	<version>0.0.1</version>
 	<packaging>pom</packaging>
 	<name>${project.artifactId}</name>
     <description>Cattle Framework Commons Component Build Dependencies</description>
-	<url>https://github.com/Summer-Cattle/Cattle-Commons</url>
+	<url>https://gitlab.com/summer-cattle/cattle-commons</url>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
@@ -22,26 +22,26 @@
     </licenses>
     <organization>
         <name>Summer Cattle Team</name>
-        <url>https://github.com/Summer-Cattle</url>
+        <url>https://gitlab.com/summer-cattle</url>
     </organization>
 	<developers>
 		<developer>
 		    <id>juhua</id>
 			<name>juhua</name>
 			<organization>Summer Cattle Team</organization>
-			<organizationUrl>https://github.com/Summer-Cattle</organizationUrl>
+			<organizationUrl>https://gitlab.com/summer-cattle</organizationUrl>
             <roles>
                 <role>developer</role>
             </roles>
 		</developer>
 	</developers>
 	<scm>
-	    <connection>scm:git:https://github.com/Summer-Cattle/Cattle-Commons.git</connection>
-		<developerConnection>scm:git:git@github.com:Summer-Cattle/Cattle-Commons.git</developerConnection>
-		<url>https://github.com/Summer-Cattle/Cattle-Commons</url>
+	    <connection>scm:git:ssh://gitlab.com/summer-cattle/cattle-commons.git</connection>
+		<developerConnection>scm:git:ssh://git@gitlab.com:summer-cattle/cattle-commons.git</developerConnection>
+		<url>https://gitlab.com/summer-cattle/cattle-commons</url>	
 	</scm>
 	<properties>
-	    <cattle-commons.version>0.0.1.SP2</cattle-commons.version>		
+	    <cattle-commons.version>0.0.1</cattle-commons.version>		
 		<fastjson.version>1.2.76</fastjson.version>
 	    <guice.version>5.0.1</guice.version>
 	    <guava.version>30.1.1-jre</guava.version>
@@ -73,37 +73,37 @@
 	<dependencyManagement>
 	    <dependencies>
 			<dependency>
-				<groupId>io.github.summercattle</groupId>
+				<groupId>com.gitlab.summer-cattle</groupId>
 				<artifactId>cattle-commons-public</artifactId>
 				<version>${cattle-commons.version}</version>
 			</dependency>
 			<dependency>
-				<groupId>io.github.summercattle</groupId>
+				<groupId>com.gitlab.summer-cattle</groupId>
 				<artifactId>cattle-commons-utils</artifactId>
 				<version>${cattle-commons.version}</version>
 			</dependency>
 			<dependency>
-				<groupId>io.github.summercattle</groupId>
+				<groupId>com.gitlab.summer-cattle</groupId>
 				<artifactId>cattle-commons-db</artifactId>
 				<version>${cattle-commons.version}</version>
 			</dependency>
 			<dependency>
-				<groupId>io.github.summercattle</groupId>
+				<groupId>com.gitlab.summer-cattle</groupId>
 				<artifactId>cattle-commons-webmvc</artifactId>
 				<version>${cattle-commons.version}</version>
 			</dependency>
 			<dependency>
-				<groupId>io.github.summercattle</groupId>
+				<groupId>com.gitlab.summer-cattle</groupId>
 				<artifactId>cattle-commons-webflux</artifactId>
 				<version>${cattle-commons.version}</version>
 			</dependency>
             <dependency>
-			    <groupId>io.github.summercattle</groupId>
+			    <groupId>com.gitlab.summer-cattle</groupId>
 				<artifactId>cattle-commons-quartz</artifactId>
 				<version>${cattle-commons.version}</version>
             </dependency>
             <dependency>
-			    <groupId>io.github.summercattle</groupId>
+			    <groupId>com.gitlab.summer-cattle</groupId>
 				<artifactId>cattle-commons-db-datasource</artifactId>
 				<version>${cattle-commons.version}</version>
             </dependency>			

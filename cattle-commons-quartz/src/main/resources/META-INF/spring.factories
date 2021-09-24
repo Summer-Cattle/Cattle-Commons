@@ -1,2 +1,2 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-io.github.summercattle.commons.quartz.configure.QuartzAutoConfiguration
+com.gitlab.summercattle.commons.quartz.configure.QuartzAutoConfiguration

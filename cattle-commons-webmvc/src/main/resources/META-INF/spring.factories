@@ -1,2 +1,2 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-io.github.summercattle.commons.webmvc.configure.WebMvcAutoConfiguration
+com.gitlab.summercattle.commons.webmvc.configure.WebMvcAutoConfiguration

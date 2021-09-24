@@ -1,2 +1,2 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-io.github.summercattle.commons.webflux.configure.WebFluxAutoConfiguration
+com.gitlab.summercattle.commons.webflux.configure.WebFluxAutoConfiguration

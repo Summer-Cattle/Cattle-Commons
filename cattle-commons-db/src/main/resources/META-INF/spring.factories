@@ -1,2 +1,2 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-io.github.summercattle.commons.db.configure.DbAutoConfiguration
+com.gitlab.summercattle.commons.db.configure.DbAutoConfiguration
