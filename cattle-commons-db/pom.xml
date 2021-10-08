@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>com.gitlab.summer-cattle</groupId>
 		<artifactId>cattle-commons</artifactId>
-		<version>0.0.1</version>
+		<version>0.0.1.SP1</version>
 	</parent>
     <artifactId>cattle-commons-db</artifactId>
     <packaging>jar</packaging>
@@ -39,10 +39,6 @@
 		<url>https://gitlab.com/summer-cattle/cattle-commons</url>	
 	</scm>
 	<dependencies>
-		<dependency>
-		    <groupId>com.gitlab.summer-cattle</groupId>
-			<artifactId>cattle-commons-public</artifactId>
-		</dependency>
 	    <dependency>
             <groupId>com.gitlab.summer-cattle</groupId>
 	    	<artifactId>cattle-commons-utils</artifactId>

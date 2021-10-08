@@ -15,6 +15,7 @@
  */
 package com.gitlab.summercattle.commons.utils.guice.annotation;
 
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.core.Ordered;
 
@@ -23,5 +24,15 @@ class GuiceInjectorInitializingBeanPostProcessor implements BeanPostProcessor, O
 	@Override
 	public int getOrder() {
 		return Ordered.LOWEST_PRECEDENCE - 1;
+	}
+
+	@Override
+	public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+		return bean;
+	}
+
+	@Override
+	public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+		return bean;
 	}
 }

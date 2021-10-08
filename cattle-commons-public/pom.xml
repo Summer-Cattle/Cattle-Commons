@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>com.gitlab.summer-cattle</groupId>
 		<artifactId>cattle-commons</artifactId>
-		<version>0.0.1</version>
+		<version>0.0.1.SP1</version>
 	</parent>	
     <artifactId>cattle-commons-public</artifactId>
 	<name>${project.artifactId}</name>

@@ -4,10 +4,9 @@
 	<parent>
 	    <groupId>com.gitlab.summer-cattle</groupId>
 	    <artifactId>cattle-build</artifactId>
-		<version>0.0.1</version>
+		<version>0.0.1.SP1</version>
 	</parent>
     <artifactId>cattle-commons</artifactId>
-	<version>0.0.1</version>
 	<packaging>pom</packaging>
 	<name>${project.artifactId}</name>
     <description>Cattle Framework Commons Component parent pom, managing plugins and dependencies for Cattle Framework Commons Component projects</description>
@@ -50,7 +49,7 @@
 		<module>cattle-commons-db-datasource</module>
 	</modules>
 	<properties>
-	    <cattle-commons.version>0.0.1</cattle-commons.version>
+	    <cattle-commons.version>0.0.1.SP1</cattle-commons.version>
 	</properties>
 	<dependencyManagement>
         <dependencies>

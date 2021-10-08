@@ -90,7 +90,14 @@ public class CommonEncryptUtils {
 		}
 		try {
 			SecretKeySpec secretKeySpec = new SecretKeySpec(key, encryptType.toString());
-			Cipher cipher = Cipher.getInstance(encryptType.toString() + "/CBC/" + paddingType.toString());
+			String transformation = encryptType.toString() + "/CBC/" + paddingType.toString();
+			Cipher cipher;
+			if (encryptType == CommonEncryptType.AES && paddingType == PaddingType.PKCS7Padding) {
+				cipher = Cipher.getInstance(transformation, getProvider());
+			}
+			else {
+				cipher = Cipher.getInstance(transformation);
+			}
 			AlgorithmParameters algorithmParameters = AlgorithmParameters.getInstance(encryptType.toString());
 			algorithmParameters.init(new IvParameterSpec(iv));
 			cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, algorithmParameters);
@@ -121,7 +128,14 @@ public class CommonEncryptUtils {
 		}
 		try {
 			SecretKeySpec secretKeySpec = new SecretKeySpec(key, encryptType.toString());
-			Cipher cipher = Cipher.getInstance(encryptType.toString() + "/CBC/" + paddingType.toString());
+			String transformation = encryptType.toString() + "/CBC/" + paddingType.toString();
+			Cipher cipher;
+			if (encryptType == CommonEncryptType.AES && paddingType == PaddingType.PKCS7Padding) {
+				cipher = Cipher.getInstance(transformation, getProvider());
+			}
+			else {
+				cipher = Cipher.getInstance(transformation);
+			}
 			AlgorithmParameters algorithmParameters = AlgorithmParameters.getInstance(encryptType.toString());
 			algorithmParameters.init(new IvParameterSpec(iv));
 			cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, algorithmParameters);

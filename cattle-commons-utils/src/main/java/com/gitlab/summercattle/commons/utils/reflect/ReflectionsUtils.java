@@ -22,6 +22,8 @@ import java.util.Set;
 import java.util.Vector;
 
 import org.apache.commons.lang3.StringUtils;
+import org.reflections.Reflections;
+import org.reflections.util.ConfigurationBuilder;
 
 import com.alibaba.fastjson.parser.ParserConfig;
 
@@ -51,14 +53,15 @@ public class ReflectionsUtils {
 			}
 		}
 		if (packages.size() > 0) {
-			reflections = new Reflections(packages.toArray(new String[0]));
+			ConfigurationBuilder configurationBuilder = new ConfigurationBuilder();
+			configurationBuilder = configurationBuilder.forPackages(packages.toArray(new String[0]));
+			reflections = new Reflections(configurationBuilder);
 		}
 		else {
 			reflections = new Reflections();
 		}
 		ParserConfig parserConfig = ParserConfig.getGlobalInstance();
 		parserConfig.setAutoTypeSupport(true);
-		parserConfig.addAccept("org.springframework");
 		for (String lPackage : packages) {
 			parserConfig.addAccept(lPackage);
 		}
