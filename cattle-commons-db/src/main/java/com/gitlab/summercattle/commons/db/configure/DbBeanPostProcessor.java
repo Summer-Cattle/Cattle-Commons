@@ -13,27 +13,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.gitlab.summercattle.commons.db.runner;
+package com.gitlab.summercattle.commons.db.configure;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.stereotype.Component;
 
 import com.gitlab.summercattle.commons.db.DbUtils;
-import com.gitlab.summercattle.commons.db.configure.DbProperties;
+import com.gitlab.summercattle.commons.db.dialect.Dialect;
 import com.gitlab.summercattle.commons.db.event.DbStartupEvent;
+import com.gitlab.summercattle.commons.exception.CommonException;
+import com.gitlab.summercattle.commons.utils.exception.ExceptionWrapUtils;
 import com.gitlab.summercattle.commons.utils.reflect.ClassUtils;
 import com.gitlab.summercattle.commons.utils.spring.SpringContext;
 
 @Component
-public class DbStartupRunner implements ApplicationRunner {
+public class DbBeanPostProcessor implements BeanPostProcessor {
 
-	private static final Logger logger = LoggerFactory.getLogger(DbStartupRunner.class);
+	private static final Logger logger = LoggerFactory.getLogger(DbBeanPostProcessor.class);
 
 	@Override
-	public void run(ApplicationArguments args) throws Exception {
+	public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+		if (bean instanceof Dialect) {
+			try {
+				executeStartup();
+			}
+			catch (CommonException e) {
+				throw ExceptionWrapUtils.wrapRuntime(e);
+			}
+		}
+		return bean;
+	}
+
+	private void executeStartup() throws CommonException {
 		DbProperties dbProperties = SpringContext.getBean(DbProperties.class);
 		if (dbProperties.isGenerate()) {
 			DbUtils.getDbStruct().check(dbProperties);

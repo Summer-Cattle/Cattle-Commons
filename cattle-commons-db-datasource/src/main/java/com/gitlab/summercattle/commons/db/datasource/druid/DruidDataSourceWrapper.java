@@ -15,6 +15,9 @@
  */
 package com.gitlab.summercattle.commons.db.datasource.druid;
 
+import java.util.List;
+
+import com.alibaba.druid.filter.Filter;
 import com.alibaba.druid.pool.DruidDataSource;
 
 public class DruidDataSourceWrapper extends DruidDataSource {
@@ -29,5 +32,9 @@ public class DruidDataSourceWrapper extends DruidDataSource {
 		catch (IllegalArgumentException ignore) {
 			super.maxEvictableIdleTimeMillis = maxEvictableIdleTimeMillis;
 		}
+	}
+
+	public void autoAddFilters(List<Filter> filters) {
+		super.filters.addAll(filters);
 	}
 }

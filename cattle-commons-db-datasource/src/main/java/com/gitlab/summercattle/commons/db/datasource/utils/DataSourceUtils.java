@@ -17,19 +17,25 @@ package com.gitlab.summercattle.commons.db.datasource.utils;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.sql.SQLException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Vector;
 
 import javax.sql.DataSource;
 
 import org.apache.commons.lang3.StringUtils;
 
+import com.alibaba.druid.filter.Filter;
 import com.gitlab.summercattle.commons.db.datasource.configure.DataSourceInfo;
 import com.gitlab.summercattle.commons.db.datasource.druid.DruidDataSourceWrapper;
 import com.gitlab.summercattle.commons.exception.CommonException;
+import com.gitlab.summercattle.commons.utils.exception.ExceptionWrapUtils;
 import com.gitlab.summercattle.commons.utils.reflect.ClassType;
 import com.gitlab.summercattle.commons.utils.reflect.ClassUtils;
 import com.gitlab.summercattle.commons.utils.reflect.ReflectUtils;
+import com.gitlab.summercattle.commons.utils.spring.SpringContext;
 import com.zaxxer.hikari.HikariDataSource;
 
 public class DataSourceUtils {
@@ -76,6 +82,12 @@ public class DataSourceUtils {
 			((DruidDataSourceWrapper) dataSource).setUrl(dataSourceInfo.getJdbcUrl());
 			((DruidDataSourceWrapper) dataSource).setUsername(dataSourceInfo.getUsername());
 			((DruidDataSourceWrapper) dataSource).setPassword(dataSourceInfo.getPassword());
+			String[] beanNames = SpringContext.getApplicationContext().getBeanNamesForType(Filter.class);
+			List<Filter> filters = new Vector<Filter>();
+			for (int i = 0; i < beanNames.length; i++) {
+				filters.add((Filter) SpringContext.getBean(beanNames[i]));
+			}
+			((DruidDataSourceWrapper) dataSource).autoAddFilters(filters);
 		}
 		else if (HIKARI_CLASS_NAME.equals(className)) {
 			((HikariDataSource) dataSource).setDriverClassName(driverClassName);

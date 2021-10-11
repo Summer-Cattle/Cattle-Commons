@@ -30,15 +30,14 @@ import org.springframework.jdbc.datasource.DataSourceUtils;
 
 import com.gitlab.summercattle.commons.db.dialect.Dialect;
 import com.gitlab.summercattle.commons.db.dialect.DialectFactory;
-import com.gitlab.summercattle.commons.db.runner.DbStartupRunner;
 import com.gitlab.summercattle.commons.exception.CommonException;
 import com.gitlab.summercattle.commons.utils.exception.ExceptionWrapUtils;
 
 @Configuration(proxyBeanMethods = false)
-@AutoConfigureBefore(name = "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration")
+@AutoConfigureBefore(name = "com.gitlab.summercattle.commons.db.datasource.configure.DbDataSourceAutoConfiguration")
 @PropertySource("classpath:/com/gitlab/summercattle/commons/db/configure/db.properties")
 @EnableConfigurationProperties({ DbProperties.class })
-@ComponentScan(basePackageClasses = DbStartupRunner.class)
+@ComponentScan(basePackageClasses = DbBeanPostProcessor.class)
 public class DbAutoConfiguration {
 
 	@Bean
